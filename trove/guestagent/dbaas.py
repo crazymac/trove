@@ -36,6 +36,7 @@ LOG = log.getLogger(__name__)
 defaults = {
     'mysql': 'trove.guestagent.manager.mysql.Manager',
     'percona': 'trove.guestagent.manager.mysql.Manager',
+    'cassandra': 'trove.guestagent.manager.cassandra.manager.Manager'
 }
 
 CONF = cfg.CONF

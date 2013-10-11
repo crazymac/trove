@@ -1,0 +1,54 @@
+#!/bin/bash
+########### Pre-setup #########
+
+export SSHKEY = ""
+passwd root <<_EOF_
+root
+root
+_EOF_
+
+iptables -F
+apt-get install -qy expect ntp ssh git git-core python-dev libxml2-dev libxslt1-dev python-pexpect python-mysqldb python-migrate build-essential curl openjdk-7-jdk
+
+########### Pre-setup #########
+
+######## setting git server ###########
+
+cd
+mkdir -p /srv/git/guestagent
+cd /srv/git/guestagent
+git init
+chown -R root:root /srv
+chown -R 777 /srv
+cd
+
+######## setting git server ###########
+
+################################ ssh ###################################################################
+
+mkdir -p /root/.ssh
+touch /root/.ssh/authorized_keys
+echo "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQDCPWH4REJVD121pUCyXPR1lwh0U6Lh5cS9hyq6Ok15tuJkaKKN1Nzvy7uDTUq1RhF32Ep3BwNTk07cuY2znhUuYlDWaovmpXzj1KWnb5LjWqjlGVRq2trASP0HpzEhrSwhQ2Mhln/32On5iKi2TYUaz18cKllsseXzTTfSp9G263fyVnxew2SpbiJPnFF5v4URS0a7bJUaAc7F5U9rXo0olkgr2QBqafR3tNMXqfCpYi60tX8FckBhXBsYVp+X79gLlcyuSV6Wf7MdjwsjbM9PG7+ozYq6y8t08CRf34er5WiG94U8DYWxim7z2GtHZSslqxI5GiKPiqUpqIiPnRiX dmakogon@dmakogon-pc" >> /root/.ssh/authorized_keys
+
+################################ ssh ###################################################################
+
+################################ Py ###################################################################
+
+wget https://bitbucket.org/pypa/setuptools/raw/bootstrap/ez_setup.py
+
+python ez_setup.py
+
+wget https://raw.github.com/pypa/pip/master/contrib/get-pip.py
+
+python get-pip.py
+
+################################ Py ###################################################################
+
+################################ cassandra ###################################################################
+
+touch /etc/apt/sources.list.d/cassandra.sources.list
+echo "deb http://debian.datastax.com/community stable main" >> /etc/apt/sources.list.d/cassandra.sources.list
+curl -L http://debian.datastax.com/debian/repo_key | sudo apt-key add -
+apt-get update
+
+################################ cassandra ###################################################################
