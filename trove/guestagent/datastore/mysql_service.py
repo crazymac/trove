@@ -17,7 +17,7 @@ from trove.guestagent import query
 from trove.guestagent.db import models
 from trove.guestagent import system
 from trove.guestagent import pkg
-from trove.guestagent.manager import service
+from trove.guestagent.datastore import service
 from trove.openstack.common import log as logging
 from trove.openstack.common.gettextutils import _
 from trove.extensions.mysql.models import RootHistory

@@ -173,12 +173,21 @@ class FreshInstanceTasks(FreshInstance, NotifyMixin, ConfigurationMixin):
             err = inst_models.InstanceTasks.BUILDING_ERROR_DNS
             self._log_and_raise(e, msg, err)
 
-        config = self._render_config(service_type, flavor, self.id)
+        conf_content = None
+        config = None
+        try:
+            conf_content = None
+            config = self._render_config(service_type, flavor, self.id)
 
-        if server:
-            self._guest_prepare(server, flavor['ram'], volume_info,
-                                databases, users, backup_id,
-                                config.config_contents, root_password)
+        except Exception:
+            pass
+        finally:
+            if server:
+                if config:
+                    conf_content = config.config_contents
+                self._guest_prepare(server, flavor['ram'], volume_info,
+                                    databases, users, backup_id,
+                                    conf_content, root_password)
 
         if not self.db_info.task_status.is_error:
             self.update_db(task_status=inst_models.InstanceTasks.NONE)

@@ -12,19 +12,21 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
-from trove.guestagent import volume
-import testtools
-from trove.instance import models as rd_models
 import os
-
+import testtools
+from mock import Mock
+from testtools import matchers
 from mockito import verify, when, unstub, any, mock, never
-from testtools.matchers import Is, Equals, Not
-from trove.common.context import TroveContext
 
-from trove.guestagent.manager.mysql import Manager
-import trove.guestagent.manager.mysql_service as dbaas
+
+import trove.guestagent.datastore.mysql_service as dbaas
+from trove.common.context import TroveContext
+from trove.common.instance import ServiceStatuses
+from trove.guestagent.datastore.cassandra import manager as cass_manager
+from trove.guestagent.datastore.cassandra import service as cass_service
+from trove.guestagent.datastore.mysql import Manager
 from trove.guestagent import backup
-from trove.guestagent.volume import VolumeDevice
+from trove.guestagent import volume
 
 
 class GuestAgentManagerTest(testtools.TestCase):
@@ -89,27 +91,27 @@ class GuestAgentManagerTest(testtools.TestCase):
         when(dbaas.MySqlAdmin).list_databases(None, None,
                                               False).thenReturn(['database1'])
         databases = self.manager.list_databases(self.context)
-        self.assertThat(databases, Not(Is(None)))
-        self.assertThat(databases, Equals(['database1']))
+        self.assertThat(databases, matchers.Not(matchers.Is(None)))
+        self.assertThat(databases, matchers.Equals(['database1']))
         verify(dbaas.MySqlAdmin).list_databases(None, None, False)
 
     def test_list_users(self):
         when(dbaas.MySqlAdmin).list_users(None, None,
                                           False).thenReturn(['user1'])
         users = self.manager.list_users(self.context)
-        self.assertThat(users, Equals(['user1']))
+        self.assertThat(users, matchers.Equals(['user1']))
         verify(dbaas.MySqlAdmin).list_users(None, None, False)
 
     def test_enable_root(self):
         when(dbaas.MySqlAdmin).enable_root().thenReturn('user_id_stuff')
         user_id = self.manager.enable_root(self.context)
-        self.assertThat(user_id, Is('user_id_stuff'))
+        self.assertThat(user_id, matchers.Is('user_id_stuff'))
         verify(dbaas.MySqlAdmin).enable_root()
 
     def test_is_root_enabled(self):
         when(dbaas.MySqlAdmin).is_root_enabled().thenReturn(True)
         is_enabled = self.manager.is_root_enabled(self.context)
-        self.assertThat(is_enabled, Is(True))
+        self.assertThat(is_enabled, matchers.Is(True))
         verify(dbaas.MySqlAdmin).is_root_enabled()
 
     def test_create_backup(self):
@@ -147,9 +149,9 @@ class GuestAgentManagerTest(testtools.TestCase):
         mock_status = mock()
         when(dbaas.MySqlAppStatus).get().thenReturn(mock_status)
         when(mock_status).begin_install().thenReturn(None)
-        when(VolumeDevice).format().thenReturn(None)
-        when(VolumeDevice).migrate_data(any()).thenReturn(None)
-        when(VolumeDevice).mount().thenReturn(None)
+        when(volume.VolumeDevice).format().thenReturn(None)
+        when(volume.VolumeDevice).migrate_data(any()).thenReturn(None)
+        when(volume.VolumeDevice).mount().thenReturn(None)
         when(dbaas.MySqlApp).stop_db().thenReturn(None)
         when(dbaas.MySqlApp).start_mysql().thenReturn(None)
         when(dbaas.MySqlApp).install_if_needed().thenReturn(None)
@@ -173,10 +175,10 @@ class GuestAgentManagerTest(testtools.TestCase):
         # verification/assertion
         verify(mock_status).begin_install()
 
-        verify(VolumeDevice, times=COUNT).format()
+        verify(volume.VolumeDevice, times=COUNT).format()
         verify(dbaas.MySqlApp, times=(COUNT * SEC_COUNT)).stop_db()
-        verify(VolumeDevice, times=(migrate_count * SEC_COUNT)).migrate_data(
-            any())
+        verify(volume.VolumeDevice,
+               times=(migrate_count * SEC_COUNT)).migrate_data(any())
         if backup_id:
             verify(backup).restore(self.context, backup_id, '/var/lib/mysql')
         verify(dbaas.MySqlApp).install_if_needed()
@@ -188,3 +190,90 @@ class GuestAgentManagerTest(testtools.TestCase):
         verify(dbaas.MySqlApp).secure_root(secure_remote_root=any())
         verify(dbaas.MySqlAdmin, times=times_report).report_root_enabled(
             self.context)
+
+
+class GuestAgentCassandraDBManagerTest(testtools.TestCase):
+
+    def setUp(self):
+        super(GuestAgentCassandraDBManagerTest, self).setUp()
+        self.real_status = cass_service.CassandraAppStatus._load_status
+
+        class FakeInstanceServiceStatus(object):
+            status = ServiceStatuses.NEW
+
+            def save(self):
+                pass
+
+        cass_service.CassandraAppStatus._load_status = Mock(
+            return_value=FakeInstanceServiceStatus())
+        self.context = TroveContext()
+        self.manager = cass_manager.Manager()
+        self.real_db_app_status = cass_service.CassandraAppStatus
+        self.origin_os_path_exists = os.path.exists
+        self.origin_format = volume.VolumeDevice.format
+        self.origin_migrate_data = volume.VolumeDevice.migrate_data
+        self.origin_mount = volume.VolumeDevice.mount
+        self.origin_is_installed = cass_service.CassandraApp.is_installed
+        self.origin_stop_db = cass_service.CassandraApp.stop_cassandra
+        self.origin_start_db = cass_service.CassandraApp.start_cassandra
+        self.origin_install_db = cass_service.CassandraApp._install_cassandra
+
+    def tearDown(self):
+        super(GuestAgentCassandraDBManagerTest, self).tearDown()
+        cass_service.CassandraAppStatus._load_status = self.real_db_app_status
+        os.path.exists = self.origin_os_path_exists
+        volume.VolumeDevice.format = self.origin_format
+        volume.VolumeDevice.migrate_data = self.origin_migrate_data
+        volume.VolumeDevice.mount = self.origin_mount
+        cass_service.CassandraApp.is_installed = self.origin_is_installed
+        cass_service.CassandraApp.stop_cassandra = self.origin_stop_db
+        cass_service.CassandraApp.start_cassandra = self.origin_start_db
+        cass_service.CassandraApp._install_cassandra = self.origin_install_db
+
+    def test_update_status(self):
+        mock_status = mock()
+        self.manager.appStatus = mock_status
+        self.manager.update_status(self.context)
+        verify(mock_status).update()
+
+    def test_prepare_device_path_not_none(self):
+        self._prepare_dynamic()
+
+    def _prepare_dynamic(self, device_path='/dev/vdb', is_db_installed=True,
+                         backup_id=None, is_root_enabled=False):
+
+        # covering all outcomes is starting to cause trouble here
+        COUNT = 1 if device_path else 0
+        SEC_COUNT = 1 if is_db_installed else 0
+        migrate_count = 1 * COUNT if not backup_id else 0
+
+        mock_status = mock()
+        self.manager.appStatus = mock_status
+        when(mock_status).begin_install().thenReturn(None)
+
+        when(volume.VolumeDevice).format().thenReturn(None)
+        when(volume.VolumeDevice).migrate_data(any()).thenReturn(None)
+        when(volume.VolumeDevice).mount().thenReturn(None)
+
+        mock_app = mock()
+        self.manager.app = mock_app
+        when(mock_app).stop_cassandra().thenReturn(None)
+        when(mock_app).start_cassandra().thenReturn(None)
+        when(mock_app).install_if_needed().thenReturn(None)
+        when(mock_app).is_installed().thenReturn(is_db_installed)
+
+        when(os.path).exists(any()).thenReturn(is_db_installed)
+        # invocation
+        self.manager.prepare(context=self.context, databases=None,
+                             memory_mb='2048', users=None,
+                             device_path=device_path,
+                             mount_point="/var/lib/cassandra",
+                             backup_id=backup_id)
+        # verification/assertion
+        verify(mock_status).begin_install()
+
+        verify(volume.VolumeDevice, times=COUNT).format()
+        verify(mock_app, times=(COUNT * SEC_COUNT)).stop_cassandra()
+        verify(volume.VolumeDevice,
+               times=(migrate_count * SEC_COUNT)).migrate_data(any())
+        verify(mock_app).install_if_needed()
