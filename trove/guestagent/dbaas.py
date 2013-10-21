@@ -34,8 +34,9 @@ from trove.common import cfg
 
 LOG = log.getLogger(__name__)
 defaults = {
-    'mysql': 'trove.guestagent.manager.mysql.Manager',
-    'percona': 'trove.guestagent.manager.mysql.Manager',
+    'mysql': 'trove.guestagent.datastore.mysql.Manager',
+    'percona': 'trove.guestagent.datastore.mysql.Manager',
+    'cassandra': 'trove.guestagent.datastore.cassandra.manager.Manager'
 }
 
 CONF = cfg.CONF

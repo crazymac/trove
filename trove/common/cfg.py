@@ -192,7 +192,7 @@ common_opts = [
     cfg.IntOpt('exists_notification_ticks', default=360,
                help='Number of report_intevals to wait between pushing events '
                     '(see report_interval)'),
-    cfg.DictOpt('notification_service_id', default={},
+    cfg.DictOpt('notification_service_id', default=dict(),
                 help='Unique ID to tag notification events'),
     cfg.StrOpt('nova_proxy_admin_user', default='',
                help="Admin username used to connect to Nova", secret=True),

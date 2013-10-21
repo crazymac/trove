@@ -202,7 +202,8 @@ class DebianPackagerMixin(BasePackagerMixin):
                            "'sudo dpkg --configure -a'"),
                           "Unable to lock the administration directory",
                           "Setting up %s*" % package_name,
-                          "is already the newest version"]
+                          "is already the newest version",
+                          "Processing triggers for python-support"]
         i = self.pexpect_run(cmd, output_expects, time_out)
         if i == 0:
             raise PkgPermissionError("Invalid permissions.")

@@ -1,0 +1,8 @@
+Please be informed. Trove set ups Cassandra 1.2.10.
+Cassandra relays on cloud-init script.
+It prepares VM with java, full-gear python 2.7, virtualenv and guestagent* in it.
+Avarege time for cloud-init processing is 11-13 mins.
+I'd suggest you to https://github.com/rackerjoe/oz-image-build for custom image.
+Base template is https://github.com/rackerjoe/oz-image-build/blob/master/templates/ubuntu-precise_x86_64_60G.tdl
+but it need to be customised for cassandra-in-trove needs
+Trove(Guestagent) cames via git clone from specific repository.
