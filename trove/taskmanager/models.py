@@ -12,6 +12,7 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
+import hashlib
 import traceback
 import os.path
 from cinderclient import exceptions as cinder_exceptions
@@ -322,14 +323,24 @@ class FreshInstanceTasks(FreshInstance, NotifyMixin, ConfigurationMixin):
         client = create_heat_client(self.context)
         novaclient = create_nova_client(self.context)
         cinderclient = create_cinder_client(self.context)
-        heat_template = template.HeatTemplate().template()
+
+        heat_template = (template.HeatTemplate.
+                         get_template(service_type))
+
+        # service type parameter is now implicit to templates
+        # for a particular service type.
+        # TODO(SnowDust): should the keypair be configurable?
         parameters = {"KeyName": "heatkey",
                       "Flavor": flavor["name"],
                       "VolumeSize": volume_size,
-                      "ServiceType": "mysql",
                       "InstanceId": self.id,
                       "AvailabilityZone": availability_zone}
-        stack_name = 'trove-%s' % self.id
+        # naming convention changed to address the below mentioned bug
+        # https://bugs.launchpad.net/heat/+bug/1239972
+        # this causes the instance name size to overflow the limit of 63 chars.
+        stack_name = 'trove-%(instance_id)s' % {
+            'instance_id': hashlib.md5(self.id).hexdigest()[:10]}
+
         stack = client.stacks.create(stack_name=stack_name,
                                      template=heat_template,
                                      parameters=parameters)
@@ -559,8 +570,9 @@ class BuiltInstanceTasks(BuiltInstance, NotifyMixin, ConfigurationMixin):
             if use_heat:
                 # Delete the server via heat
                 heatclient = create_heat_client(self.context)
-                name = 'trove-%s' % self.id
-                heatclient.stacks.delete(name)
+                stack_name = 'trove-%(instance_id)s' % {
+                    'instance_id': hashlib.md5(self.id).hexdigest()[:10]}
+                heatclient.stacks.delete(stack_name)
             else:
                 self.server.delete()
         except Exception as ex:

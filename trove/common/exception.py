@@ -311,3 +311,9 @@ class DatabaseInitialUserDuplicateError(TroveError):
     message = _("Two or more users share the same name and host in the "
                 "initial users list. Please correct the names or remove the "
                 "duplicate entries.")
+
+
+class HeatTemplateNotFound(TroveError):
+    """exception raised when a particular heat template is missing"""
+
+    message = _("Heat template file %(template_path)s cannot be found")

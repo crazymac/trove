@@ -12,7 +12,13 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
+import os
 import jinja2
+
+from trove.common import cfg
+from trove.common.exception import HeatTemplateNotFound
+
+CONF = cfg.CONF
 
 ENV = jinja2.Environment(loader=jinja2.ChoiceLoader([
     jinja2.FileSystemLoader("/etc/trove/templates"),
@@ -23,6 +29,7 @@ ENV = jinja2.Environment(loader=jinja2.ChoiceLoader([
 class SingleInstanceConfigTemplate(object):
     """ This class selects a single configuration file by database type for
     rendering on the guest """
+
     def __init__(self, service_type, flavor_dict, instance_id):
         """ Constructor
 
@@ -60,59 +67,23 @@ class SingleInstanceConfigTemplate(object):
 
 
 class HeatTemplate(object):
-    template_contents = """HeatTemplateFormatVersion: '2012-12-12'
-Description: Instance creation
-Parameters:
-  KeyName: {Type: String}
-  Flavor: {Type: String}
-  VolumeSize: {Type: Number}
-  ServiceType: {Type: String}
-  InstanceId: {Type: String}
-  AvailabilityZone : {Type: String}
-Resources:
-  BaseInstance:
-    Type: AWS::EC2::Instance
-    Metadata:
-      AWS::CloudFormation::Init:
-        config:
-          files:
-            /etc/guest_info:
-              content:
-                Fn::Join:
-                - ''
-                - ["[DEFAULT]\\nguest_id=", {Ref: InstanceId},
-                  "\\nservice_type=", {Ref: ServiceType}]
-              mode: '000644'
-              owner: root
-              group: root
-    Properties:
-      ImageId:
-        Fn::Join:
-        - ''
-        - ["ubuntu_", {Ref: ServiceType}]
-      InstanceType: {Ref: Flavor}
-      KeyName: {Ref: KeyName}
-      AvailabilityZone: {Ref: AvailabilityZone}
-      UserData:
-        Fn::Base64:
-          Fn::Join:
-          - ''
-          - ["#!/bin/bash -v\\n",
-              "/opt/aws/bin/cfn-init\\n",
-              "sudo service trove-guest start\\n"]
-  DataVolume:
-    Type: AWS::EC2::Volume
-    Properties:
-      Size: {Ref: VolumeSize}
-      AvailabilityZone: {Ref: AvailabilityZone}
-      Tags:
-      - {Key: Usage, Value: Test}
-  MountPoint:
-    Type: AWS::EC2::VolumeAttachment
-    Properties:
-      InstanceId: {Ref: BaseInstance}
-      VolumeId: {Ref: DataVolume}
-      Device: /dev/vdb"""
+    """ implments a service based heat orchestration of images"""
 
-    def template(self):
-        return self.template_contents
+    @classmethod
+    def read_template(cls, path):
+        if os.path.isfile(path):
+            with open(path, "r") as raw_template:
+                output = raw_template.read()
+                return output
+
+    @classmethod
+    def get_template(cls, service_type):
+        """fetch templates from the base directory"""
+        heat_template_file_path = (CONF.heat_template_basedir +
+                                   "%(service_type)s.heat.template" %
+                                   {'service_type': service_type})
+        output = cls.read_template(heat_template_file_path)
+        if not output:
+            raise HeatTemplateNotFound(template_path=heat_template_file_path)
+        else:
+            return output

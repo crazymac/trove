@@ -13,9 +13,15 @@
 
 import testtools
 import re
-
+from yaml import load
+from mock import Mock
+from mockito import mock, when
+from tempfile import NamedTemporaryFile
 from trove.common import template
 from trove.tests.unittests.util import util
+from trove.common.exception import HeatTemplateNotFound
+
+CONF = mock()
 
 
 class TemplateTest(testtools.TestCase):
@@ -26,9 +32,12 @@ class TemplateTest(testtools.TestCase):
         self.template = self.env.get_template("mysql.config.template")
         self.flavor_dict = {'ram': 1024}
         self.server_id = "180b5ed1-3e57-4459-b7a3-2aeee4ac012a"
+        self.orig_conf = template.CONF
+        when(CONF).get('service_type').thenReturn('mysql')
 
     def tearDown(self):
         super(TemplateTest, self).tearDown()
+        template.CONF = self.orig_conf
 
     def validate_template(self, contents, teststr, test_flavor, server_id):
         # expected query_cache_size = {{ 8 * flavor_multiplier }}M
@@ -60,3 +69,24 @@ class TemplateTest(testtools.TestCase):
                                                        self.server_id)
         self.validate_template(config.render(), "query_cache_size",
                                self.flavor_dict, self.server_id)
+
+    def test_heat_template_loading_exception(self):
+        """ tests the loading of heat templates from base dir"""
+        # 1. test for Exception when the template is not found
+        self.assertRaises(HeatTemplateNotFound,
+                          template.HeatTemplate.get_template)
+
+    def test_heat_template_loading_and_validating(self):
+
+        # 2.test validity of the loaded template
+        # this test comes from Denis M's valued code suggestions
+        with NamedTemporaryFile(mode="w",
+                                suffix=".heat.template",
+                                delete=False) as tmp_file:
+            tmp_file.write(str({'BaseInstance': dict()}))
+        template.HeatTemplate.read_template = Mock(
+            return_value=open(tmp_file.name).read())
+        when(CONF).get('service_type').thenReturn(tmp_file.name)
+        self.assertNotEqual(None,
+                            template.HeatTemplate.
+                            get_template(CONF.service_type))

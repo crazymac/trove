@@ -210,6 +210,8 @@ common_opts = [
                 help='Extention for default service managers.'
                      ' Allows to use custom managers for each of'
                      ' service type supported in trove'),
+    cfg.StrOpt('heat_template_basedir', default='/etc/trove/heat_templates/',
+               help='Base directory for storing heat templates'),
 ]
 
 CONF = cfg.CONF
