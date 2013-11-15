@@ -18,10 +18,12 @@ import testtools
 from mockito import verify, when, unstub, any, mock, never
 from testtools.matchers import Is, Equals, Not
 
-from trove.guestagent import volume
 from trove.common.context import TroveContext
+from trove.guestagent import volume
 from trove.guestagent.datastore.mysql.manager import Manager
 import trove.guestagent.datastore.mysql.service as dbaas
+from trove.guestagent.datastore.redis.manager import Manager as RedisManager
+import trove.guestagent.datastore.redis.service as redis_service
 from trove.guestagent import backup
 from trove.guestagent.volume import VolumeDevice
 
@@ -187,3 +189,87 @@ class GuestAgentManagerTest(testtools.TestCase):
         verify(dbaas.MySqlApp).secure_root(secure_remote_root=any())
         verify(dbaas.MySqlAdmin, times=times_report).report_root_enabled(
             self.context)
+
+
+class RedisGuestAgentManagerTest(testtools.TestCase):
+
+    def setUp(self):
+        super(RedisGuestAgentManagerTest, self).setUp()
+        self.context = TroveContext()
+        self.manager = RedisManager()
+        self.origin_RedisAppStatus = redis_service.RedisAppStatus
+        self.origin_os_path_exists = os.path.exists
+        self.origin_format = volume.VolumeDevice.format
+        self.origin_migrate_data = volume.VolumeDevice.migrate_data
+        self.origin_mount = volume.VolumeDevice.mount
+        self.origin_is_installed = redis_service.RedisApp.is_installed
+        self.origin_stop_redis = redis_service.RedisApp.stop_db
+        self.origin_start_redis = redis_service.RedisApp.start_redis
+        self.origin_install_redis = redis_service.RedisApp._install_redis
+
+    def tearDown(self):
+        super(RedisGuestAgentManagerTest, self).tearDown()
+        redis_service.RedisAppStatus = self.origin_RedisAppStatus
+        os.path.exists = self.origin_os_path_exists
+        volume.VolumeDevice.format = self.origin_format
+        volume.VolumeDevice.migrate_data = self.origin_migrate_data
+        volume.VolumeDevice.mount = self.origin_mount
+        redis_service.RedisApp.is_installed = self.origin_is_installed
+        redis_service.RedisApp.stop_db = self.origin_stop_redis
+        redis_service.RedisApp.start_redis = self.origin_start_redis
+        redis_service.RedisApp._install_redis = self.origin_install_redis
+        unstub()
+
+    def test_update_status(self):
+        mock_status = mock()
+        when(redis_service.RedisAppStatus).get().thenReturn(mock_status)
+        self.manager.update_status(self.context)
+        verify(redis_service.RedisAppStatus).get()
+        verify(mock_status).update()
+
+    def test_prepare_device_path_true(self):
+        self._prepare_dynamic()
+
+    def test_prepare_device_path_false(self):
+        self._prepare_dynamic(device_path=None)
+
+    def test_prepare_redis_not_installed(self):
+        self._prepare_dynamic(is_redis_installed=False)
+
+    def _prepare_dynamic(self, device_path='/dev/vdb', is_redis_installed=True,
+                         backup_id=None, is_root_enabled=False):
+
+        # covering all outcomes is starting to cause trouble here
+        COUNT = 1 if device_path else 0
+        SEC_COUNT = 1 if is_redis_installed else 0
+        migrate_count = 1 * COUNT if not backup_id else 0
+        mock_status = mock()
+        when(redis_service.RedisAppStatus).get().thenReturn(mock_status)
+        when(mock_status).begin_install().thenReturn(None)
+        when(VolumeDevice).format().thenReturn(None)
+        when(VolumeDevice).migrate_data(any()).thenReturn(None)
+        when(VolumeDevice).mount().thenReturn(None)
+        when(redis_service.RedisApp).stop_db().thenReturn(None)
+        when(redis_service.RedisApp).start_redis().thenReturn(None)
+        when(redis_service.RedisApp).install_if_needed().thenReturn(None)
+        when(backup).restore(self.context, backup_id).thenReturn(None)
+        when(redis_service.RedisApp).secure(any()).thenReturn(None)
+        when(redis_service.RedisApp).is_installed().thenReturn(
+            is_redis_installed)
+        when(os.path).exists(any()).thenReturn(is_redis_installed)
+        # invocation
+        self.manager.prepare(context=self.context, databases=None,
+                             memory_mb='2048', users=None,
+                             device_path=device_path,
+                             mount_point='/var/lib/redis',
+                             backup_id=backup_id)
+        # verification/assertion
+        verify(mock_status).begin_install()
+
+        verify(VolumeDevice, times=COUNT).format()
+        verify(redis_service.RedisApp, times=(COUNT * SEC_COUNT)).stop_db()
+        verify(VolumeDevice, times=(migrate_count * SEC_COUNT)).migrate_data(
+            any())
+        verify(redis_service.RedisApp).install_if_needed()
+        # We dont need to make sure the exact contents are there
+        verify(redis_service.RedisApp).secure(any())

@@ -890,7 +890,7 @@ class ServiceRegistryTest(testtools.TestCase):
         dbaas_sr.get_custom_managers = Mock(return_value=
                                             service_registry_ext_test)
         test_dict = dbaas_sr.service_registry()
-        self.assertEqual(3, len(test_dict))
+        self.assertEqual(4, len(test_dict))
         self.assertEqual(test_dict.get('test'),
                          service_registry_ext_test.get('test', None))
         self.assertEqual(test_dict.get('mysql'),
@@ -908,26 +908,30 @@ class ServiceRegistryTest(testtools.TestCase):
         dbaas_sr.get_custom_managers = Mock(return_value=
                                             service_registry_ext_test)
         test_dict = dbaas_sr.service_registry()
-        self.assertEqual(2, len(test_dict))
+        self.assertEqual(3, len(test_dict))
         self.assertEqual(test_dict.get('mysql'),
                          'trove.guestagent.datastore.mysql.'
                          'manager.Manager123')
         self.assertEqual(test_dict.get('percona'),
                          'trove.guestagent.datastore.mysql.'
                          'manager.Manager')
+        self.assertEqual(test_dict.get('redis'),
+                         'trove.guestagent.datastore.redis.manager.Manager')
 
     def test_service_registry_with_blank_dict(self):
         service_registry_ext_test = dict()
         dbaas_sr.get_custom_managers = Mock(return_value=
                                             service_registry_ext_test)
         test_dict = dbaas_sr.service_registry()
-        self.assertEqual(2, len(test_dict))
+        self.assertEqual(3, len(test_dict))
         self.assertEqual(test_dict.get('mysql'),
                          'trove.guestagent.datastore.mysql.'
                          'manager.Manager')
         self.assertEqual(test_dict.get('percona'),
                          'trove.guestagent.datastore.mysql.'
                          'manager.Manager')
+        self.assertEqual(test_dict.get('redis'),
+                         'trove.guestagent.datastore.redis.manager.Manager')
 
 
 class KeepAliveConnectionTest(testtools.TestCase):

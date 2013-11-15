@@ -132,7 +132,11 @@ class VolumeMountPoint(object):
 
     def mount(self):
         if not os.path.exists(self.mount_point):
-            os.makedirs(self.mount_point)
+            utils.execute_with_timeout('mkdir',
+                                       '-p',
+                                       self.mount_point,
+                                       run_as_root=True,
+                                       root_helper='sudo')
         LOG.debug("Adding volume. Device path:%s, mount_point:%s, "
                   "volume_type:%s, mount options:%s" %
                   (self.device_path, self.mount_point, self.volume_fstype,
