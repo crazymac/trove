@@ -64,10 +64,10 @@ class TemplateTest(testtools.TestCase):
                                self.flavor_dict, self.server_id)
 
 
-class HeatTemplateLoadTest(testtools.TestCase):
+class EntityLoaderTest(testtools.TestCase):
 
     def setUp(self):
-        super(HeatTemplateLoadTest, self).setUp()
+        super(EntityLoaderTest, self).setUp()
         self.fException = mock.Mock(side_effect=
                                     lambda *args, **kwargs:
                                     _raise(template.jinja2.
@@ -77,7 +77,7 @@ class HeatTemplateLoadTest(testtools.TestCase):
             raise ex
 
     def tearDown(self):
-        super(HeatTemplateLoadTest, self).tearDown()
+        super(EntityLoaderTest, self).tearDown()
 
     def test_heat_template_load_fail(self):
         self.assertRaises(exception.TroveError,
@@ -87,3 +87,13 @@ class HeatTemplateLoadTest(testtools.TestCase):
     def test_heat_template_load_success(self):
         htmpl = template.load_heat_template('mysql')
         self.assertNotEqual(None, htmpl)
+
+    def test_guest_info_load_fail(self):
+        self.assertRaises(exception.TroveError,
+                          template.load_guest_info,
+                          'mysql-blah')
+
+    def test_guest_info_load_success(self):
+        self.assertNotEqual(None,
+                            template.load_guest_info(
+                                'mysql'))

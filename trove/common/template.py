@@ -67,11 +67,31 @@ class SingleInstanceConfigTemplate(object):
 
 
 def load_heat_template(datastore_manager):
-    template_filename = "%s/heat.template" % datastore_manager
+    template_filename = "%s/heat.template"
+    return load_entity(datastore_manager,
+                       pattern=template_filename)
+
+
+def load_guest_info(datastore_manager):
+    template_filename = "%s/guest_info.config"
+
+    return load_entity(datastore_manager,
+                       pattern=template_filename)
+
+
+def load_entity(datastore_manager, pattern):
     try:
-        template_obj = ENV.get_template(template_filename)
-        return template_obj
+        entity = ENV.get_template(pattern
+                                  % datastore_manager)
+        entity_unicode = entity.render()
+        try:
+            entity_template = entity_unicode.encode('ascii')
+            return entity_template
+        except UnicodeEncodeError:
+            LOG.error(_("Entity ascii encode issue"))
+            raise TroveError("Entity ascii encode issue")
     except jinja2.TemplateNotFound:
-        msg = "Missing heat template for %s" % datastore_manager
+        msg = ("Missing file %s!" % (pattern
+                                  % datastore_manager))
         LOG.error(msg)
         raise exception.TroveError(msg)

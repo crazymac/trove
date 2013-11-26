@@ -15,6 +15,10 @@ Parameters:
   AvailabilityZone:
     Type: String
     Default: nova
+  GuestInfo:
+    Type: String
+  GuestConfig:
+    Type: String
 Resources:
   BaseInstance:
     Type: AWS::EC2::Instance
@@ -26,8 +30,15 @@ Resources:
               content:
                 Fn::Join:
                 - ''
-                - ["[DEFAULT]\nguest_id=", {Ref: InstanceId},
-                  "\ndatastore_manager=", {Ref: DatastoreManager}]
+                - {Ref: GuestInfo}
+              mode: '000644'
+              owner: root
+              group: root
+            /etc/guest_config:
+              content:
+                Fn::Join:
+                - ''
+                - {Ref: GuestConfig}
               mode: '000644'
               owner: root
               group: root

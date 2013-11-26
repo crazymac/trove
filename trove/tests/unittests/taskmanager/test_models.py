@@ -64,7 +64,6 @@ class fake_nova_client:
 
 
 class fake_InstanceServiceStatus(object):
-
     _instance = None
 
     def __init__(self):
@@ -96,7 +95,6 @@ class fake_InstanceServiceStatus(object):
 
 
 class fake_DBInstance(object):
-
     _instance = None
 
     def __init__(self):
@@ -150,7 +148,9 @@ class FreshInstanceTasksTest(testtools.TestCase):
         self.orig_DBI_find_by = DBInstance.find_by
         self.userdata = "hello moto"
         self.guestconfig_content = "guest config"
-        with NamedTemporaryFile(suffix=".cloudinit", delete=False) as f:
+        with NamedTemporaryFile(prefix='mysql',
+                                suffix=".cloudinit",
+                                delete=False) as f:
             self.cloudinit = f.name
             f.write(self.userdata)
         with NamedTemporaryFile(delete=False) as f:
@@ -173,39 +173,45 @@ class FreshInstanceTasksTest(testtools.TestCase):
                                                               cloudinit))[0]
         when(taskmanager_models.CONF).get("cloudinit_location").thenReturn(
             cloudinit_location)
+        when(taskmanager_models.template).load_guest_info(any()).thenReturn(
+            "blah-blah=blah-blah")
         server = self.freshinstancetasks._create_server(
             None, None, None, datastore_manager, None, None)
         self.assertEqual(server.userdata, self.userdata)
+
+    def test_instance_create_fail_on_missing_guest_info(self):
+        self.assertRaises(TroveError, self.freshinstancetasks._create_server,
+                          None, None, None, "mysql_blah", None, None)
 
     def test_create_instance_guestconfig(self):
         when(taskmanager_models.CONF).get("guest_config").thenReturn(
             self.guestconfig)
         server = self.freshinstancetasks._create_server(
-            None, None, None, "test", None, None)
+            None, None, None, "mysql", None, None)
         self.assertTrue('/etc/trove-guestagent.conf' in server.files)
         self.assertEqual(server.files['/etc/trove-guestagent.conf'],
                          self.guestconfig_content)
+        self.assertIsNotNone(server.files['/etc/guest_info'])
 
     def test_create_instance_with_az_kwarg(self):
         server = self.freshinstancetasks._create_server(
-            None, None, None, None, None, availability_zone='nova')
+            None, None, None, 'mysql', None, availability_zone='nova')
 
         self.assertIsNotNone(server)
 
     def test_create_instance_with_az(self):
         server = self.freshinstancetasks._create_server(
-            None, None, None, None, None, 'nova')
+            None, None, None, 'mysql', None, 'nova')
 
         self.assertIsNotNone(server)
 
     def test_create_instance_with_az_none(self):
         server = self.freshinstancetasks._create_server(
-            None, None, None, None, None, None)
+            None, None, None, 'mysql', None, None)
 
         self.assertIsNotNone(server)
 
     def test_update_status_of_intance_failure(self):
-
         InstanceServiceStatus.find_by = Mock(
             return_value=fake_InstanceServiceStatus.find_by())
         DBInstance.find_by = Mock(return_value=fake_DBInstance.find_by())
