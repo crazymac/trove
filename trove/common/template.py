@@ -11,12 +11,12 @@
 #    WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
 #    License for the specific language governing permissions and limitations
 #    under the License.
-
+import os
 import jinja2
 from trove.common import cfg
 from trove.common import exception
 from trove.openstack.common import log as logging
-
+from trove.openstack.common.gettextutils import _
 CONF = cfg.CONF
 LOG = logging.getLogger(__name__)
 
@@ -66,12 +66,50 @@ class SingleInstanceConfigTemplate(object):
         return abs(hash(self.instance_id) % (2 ** 31))
 
 
+def stream_to_template(path):
+    with open(path, "r") as f:
+        return jinja2.Template(f.read())
+
+
 def load_heat_template(datastore_manager):
-    template_filename = "%s/heat.template" % datastore_manager
+    template_filename = "%s/heat.template"
+    return load_entity(datastore_manager,
+                       pattern=template_filename)
+
+
+def load_guest_info(datastore_manager, **kwargs):
+    template_filename = "%s/guest_info.config"
+    if kwargs:
+        return load_entity(datastore_manager,
+                           pattern=template_filename, **kwargs)
+    else:
+        msg = "Error while rendering guest_info"
+        LOG.error(msg)
+        raise exception.TroveError(msg)
+
+
+def load_guest_conf(datastore_manager, **kwargs):
+    guest_info = load_guest_info(datastore_manager,
+                                 guest_id=kwargs.get('guest_id'),
+                                 tenant_id=kwargs.get('tenant_id'))
+    if os.path.isfile(CONF.get('guest_config')):
+        guest_config = stream_to_template(CONF.get('guest_config'))
+        return guest_config.render(datastore_info=guest_info)
+
+
+def load_entity(datastore_manager, pattern, **kwargs):
     try:
-        template_obj = ENV.get_template(template_filename)
-        return template_obj
+        entity = ENV.get_template(pattern
+                                  % datastore_manager)
+        entity_unicode = entity.render(**kwargs)
+        try:
+            entity_template = entity_unicode.encode('ascii')
+            return entity_template
+        except UnicodeEncodeError:
+            LOG.error(_("Entity ascii encode issue"))
+            raise exception.TroveError("Entity ascii encode issue")
     except jinja2.TemplateNotFound:
-        msg = "Missing heat template for %s" % datastore_manager
+        msg = ("Missing file %s!" % (pattern
+                                  % datastore_manager))
         LOG.error(msg)
         raise exception.TroveError(msg)

@@ -14,8 +14,10 @@
 import testtools
 import mock
 import re
+from tempfile import NamedTemporaryFile
 
 from trove.common import template
+from trove.common import utils
 from trove.common import exception
 from trove.tests.unittests.util import util
 
@@ -42,7 +44,7 @@ class TemplateTest(testtools.TestCase):
                 found_group = m.group(0)
         if not found_group:
             raise "Could not find text in template"
-        # Check that the last group has been rendered
+            # Check that the last group has been rendered
         memsize = found_group.split(" ")[2]
         self.assertEqual(memsize, "%sM" % (8 * flavor_multiplier))
         self.assertIsNotNone(server_id)
@@ -64,20 +66,13 @@ class TemplateTest(testtools.TestCase):
                                self.flavor_dict, self.server_id)
 
 
-class HeatTemplateLoadTest(testtools.TestCase):
-
+class EntityLoaderTest(testtools.TestCase):
     def setUp(self):
-        super(HeatTemplateLoadTest, self).setUp()
-        self.fException = mock.Mock(side_effect=
-                                    lambda *args, **kwargs:
-                                    _raise(template.jinja2.
-                                    TemplateNotFound("Test")))
-
-        def _raise(ex):
-            raise ex
+        super(EntityLoaderTest, self).setUp()
+        self.uuid_id = utils.generate_uuid()
 
     def tearDown(self):
-        super(HeatTemplateLoadTest, self).tearDown()
+        super(EntityLoaderTest, self).tearDown()
 
     def test_heat_template_load_fail(self):
         self.assertRaises(exception.TroveError,
@@ -87,3 +82,52 @@ class HeatTemplateLoadTest(testtools.TestCase):
     def test_heat_template_load_success(self):
         htmpl = template.load_heat_template('mysql')
         self.assertNotEqual(None, htmpl)
+
+    def test_guest_info_load_fail(self):
+        self.assertRaises(exception.TroveError,
+                          template.load_guest_info,
+                          'mysql-blah')
+
+    def test_guest_info_load_success(self):
+        self.assertNotEqual(None,
+                            template.load_guest_info(
+                                'mysql',
+                                guest_id=str(self.uuid_id),
+                                tenant_id=str(self.uuid_id)))
+
+    def test_guest_info_render_fail(self):
+        self.assertRaises(exception.TroveError,
+                          template.load_guest_info, 'mysql')
+
+    def test_guest_info_render_success(self):
+        tmplt = template.load_guest_info('mysql',
+                                         guest_id=str(self.uuid_id),
+                                         tenant_id=str(self.uuid_id))
+        guest_id = ''.join(tmplt.split('\n')[:1])
+        tenant_id = ''.join(tmplt.split('\n')[1:2])
+        self.assertEqual('guest_id = %s' % self.uuid_id, guest_id)
+        self.assertEqual('tenant_id = %s' % self.uuid_id, tenant_id)
+
+    def test_load_guest_conf(self):
+        import jinja2
+        template.os.path.isfile = mock.Mock(return_value=True)
+        template.stream_to_template = mock.Mock(
+            return_value=jinja2.Template('Hello {{ datastore_info }}'))
+        tmplt = template.load_guest_conf('mysql',
+                                         guest_id=str(self.uuid_id),
+                                         tenant_id=str(self.uuid_id))
+        self.assertNotEqual(None, tmplt)
+
+    def test_load_guest_conf_with_check(self):
+        guest_info = template.load_guest_info(
+            'mysql', guest_id=str(self.uuid_id),
+            tenant_id=str(self.uuid_id))
+
+        template.os.path.isfile = mock.Mock(return_value=True)
+        template.stream_to_template = mock.Mock(
+            return_value=template.jinja2.Template("\n{{ datastore_info }}\n"))
+
+        guest_conf = template.load_guest_conf(
+            'mysql', guest_id=str(self.uuid_id),
+            tenant_id=str(self.uuid_id))
+        self.assertTrue(guest_info in guest_conf)

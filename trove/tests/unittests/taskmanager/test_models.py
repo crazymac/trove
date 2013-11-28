@@ -64,7 +64,6 @@ class fake_nova_client:
 
 
 class fake_InstanceServiceStatus(object):
-
     _instance = None
 
     def __init__(self):
@@ -96,7 +95,6 @@ class fake_InstanceServiceStatus(object):
 
 
 class fake_DBInstance(object):
-
     _instance = None
 
     def __init__(self):
@@ -158,6 +156,9 @@ class FreshInstanceTasksTest(testtools.TestCase):
             f.write(self.guestconfig_content)
         self.freshinstancetasks = taskmanager_models.FreshInstanceTasks(
             None, mock(), None, None)
+        self.save = taskmanager_models.template.load_guest_conf
+        taskmanager_models.template.load_guest_conf = Mock(
+            return_value=self.guestconfig_content)
 
     def tearDown(self):
         super(FreshInstanceTasksTest, self).tearDown()
@@ -165,6 +166,7 @@ class FreshInstanceTasksTest(testtools.TestCase):
         os.remove(self.guestconfig)
         InstanceServiceStatus.find_by = self.orig_ISS_find_by
         DBInstance.find_by = self.orig_DBI_find_by
+        taskmanager_models.template.load_guest_conf = self.save
         unstub()
 
     def test_create_instance_userdata(self):
@@ -177,35 +179,52 @@ class FreshInstanceTasksTest(testtools.TestCase):
             None, None, None, datastore_manager, None, None)
         self.assertEqual(server.userdata, self.userdata)
 
-    def test_create_instance_guestconfig(self):
-        when(taskmanager_models.CONF).get("guest_config").thenReturn(
-            self.guestconfig)
+    def test_create_instance_guest_info(self):
+        cloudinit_location = os.path.dirname(self.cloudinit)
+        datastore_manager = os.path.splitext(os.path.basename(self.
+                                                              cloudinit))[0]
+        when(taskmanager_models.CONF).get("cloudinit_location").thenReturn(
+            cloudinit_location)
         server = self.freshinstancetasks._create_server(
-            None, None, None, "test", None, None)
-        self.assertTrue('/etc/trove-guestagent.conf' in server.files)
-        self.assertEqual(server.files['/etc/trove-guestagent.conf'],
+            None, None, None, datastore_manager, None, None)
+        self.assertEqual(server.files['/etc/guest_info'],
                          self.guestconfig_content)
 
     def test_create_instance_with_az_kwarg(self):
+        cloudinit_location = os.path.dirname(self.cloudinit)
+        datastore_manager = os.path.splitext(os.path.basename(self.
+                                                              cloudinit))[0]
+        when(taskmanager_models.CONF).get("cloudinit_location").thenReturn(
+            cloudinit_location)
         server = self.freshinstancetasks._create_server(
-            None, None, None, None, None, availability_zone='nova')
+            None, None, None, datastore_manager,
+            None, availability_zone='nova')
 
         self.assertIsNotNone(server)
 
     def test_create_instance_with_az(self):
+        cloudinit_location = os.path.dirname(self.cloudinit)
+        datastore_manager = os.path.splitext(os.path.basename(self.
+                                                              cloudinit))[0]
+        when(taskmanager_models.CONF).get("cloudinit_location").thenReturn(
+            cloudinit_location)
         server = self.freshinstancetasks._create_server(
-            None, None, None, None, None, 'nova')
+            None, None, None, datastore_manager, None, 'nova')
 
         self.assertIsNotNone(server)
 
     def test_create_instance_with_az_none(self):
+        cloudinit_location = os.path.dirname(self.cloudinit)
+        datastore_manager = os.path.splitext(os.path.basename(self.
+                                                              cloudinit))[0]
+        when(taskmanager_models.CONF).get("cloudinit_location").thenReturn(
+            cloudinit_location)
         server = self.freshinstancetasks._create_server(
-            None, None, None, None, None, None)
+            None, None, None, datastore_manager, None, None)
 
         self.assertIsNotNone(server)
 
     def test_update_status_of_intance_failure(self):
-
         InstanceServiceStatus.find_by = Mock(
             return_value=fake_InstanceServiceStatus.find_by())
         DBInstance.find_by = Mock(return_value=fake_DBInstance.find_by())

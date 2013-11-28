@@ -218,7 +218,7 @@ common_opts = [
     cfg.StrOpt('cloudinit_location', default='/etc/trove/cloudinit',
                help="Path to folder with cloudinit scripts"),
     cfg.StrOpt('guest_config',
-               default='$pybasedir/etc/trove/trove-guestagent.conf.sample',
+               default='/etc/trove/trove-guestagent.conf',
                help="Path to guestagent config file"),
     cfg.DictOpt('datastore_registry_ext', default=dict(),
                 help='Extention for default datastore managers.'

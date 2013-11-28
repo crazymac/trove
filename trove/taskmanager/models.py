@@ -298,11 +298,17 @@ class FreshInstanceTasks(FreshInstance, NotifyMixin, ConfigurationMixin):
         LOG.debug(_("begin _create_server_volume for id: %s") % self.id)
         server = None
         try:
-            files = {"/etc/guest_info": ("[DEFAULT]\n--guest_id="
-                                         "%s\n--datastore_manager=%s\n"
-                                         "--tenant_id=%s\n" %
-                                         (self.id, datastore_manager,
-                                          self.tenant_id))}
+            guest_info = template.load_guest_conf(datastore_manager,
+                                                  guest_id=self.id,
+                                                  tenant_id=self.tenant_id)
+            files = {"/etc/guest_info": guest_info}
+
+            userdata = None
+            cloudinit = os.path.join(CONF.get('cloudinit_location'),
+                                     "%s.cloudinit" % datastore_manager)
+            if os.path.isfile(cloudinit):
+                with open(cloudinit, "r") as f:
+                    userdata = f.read()
             name = self.hostname or self.name
             volume_desc = ("mysql volume for %s" % self.id)
             volume_name = ("mysql-%s" % self.id)
@@ -311,7 +317,8 @@ class FreshInstanceTasks(FreshInstance, NotifyMixin, ConfigurationMixin):
 
             server = self.nova_client.servers.create(
                 name, image_id, flavor_id,
-                files=files, volume=volume_ref,
+                files=files, userdata=userdata,
+                volume=volume_ref,
                 security_groups=security_groups,
                 availability_zone=availability_zone)
             LOG.debug(_("Created new compute instance %(server_id)s "
@@ -347,20 +354,17 @@ class FreshInstanceTasks(FreshInstance, NotifyMixin, ConfigurationMixin):
         novaclient = create_nova_client(self.context)
         cinderclient = create_cinder_client(self.context)
 
-        template_obj = template.load_heat_template(datastore_manager)
-        heat_template_unicode = template_obj.render()
-        try:
-            heat_template = heat_template_unicode.encode('ascii')
-        except UnicodeEncodeError:
-            LOG.error(_("heat template ascii encode issue"))
-            raise TroveError("heat template ascii encode issue")
-
+        heat_template = template.load_heat_template(datastore_manager)
+        guest_info = template.load_guest_conf(datastore_manager,
+                                              guest_id=self.id,
+                                              tenant_id=self.tenant_id)
         parameters = {"Flavor": flavor["name"],
                       "VolumeSize": volume_size,
                       "InstanceId": self.id,
                       "ImageId": image_id,
                       "DatastoreManager": datastore_manager,
-                      "AvailabilityZone": availability_zone}
+                      "AvailabilityZone": availability_zone,
+                      "GuestInfo": guest_info}
         stack_name = 'trove-%s' % self.id
         client.stacks.create(stack_name=stack_name,
                              template=heat_template,
@@ -489,14 +493,11 @@ class FreshInstanceTasks(FreshInstance, NotifyMixin, ConfigurationMixin):
     def _create_server(self, flavor_id, image_id, security_groups,
                        datastore_manager, block_device_mapping,
                        availability_zone):
-        files = {"/etc/guest_info": ("[DEFAULT]\nguest_id=%s\n"
-                                     "datastore_manager=%s\n"
-                                     "tenant_id=%s\n" %
-                                     (self.id, datastore_manager,
-                                      self.tenant_id))}
-        if os.path.isfile(CONF.get('guest_config')):
-            with open(CONF.get('guest_config'), "r") as f:
-                files["/etc/trove-guestagent.conf"] = f.read()
+
+        guest_info = template.load_guest_conf(datastore_manager,
+                                              guest_id=self.id,
+                                              tenant_id=self.tenant_id)
+        files = {"/etc/guest_info": guest_info}
         userdata = None
         cloudinit = os.path.join(CONF.get('cloudinit_location'),
                                  "%s.cloudinit" % datastore_manager)
