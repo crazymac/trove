@@ -15,6 +15,7 @@
 from trove.backup import models as bkup_models
 from trove.common.context import TroveContext
 from trove.common.instance import ServiceStatus
+from trove.extensions.mysql.models import RootHistory
 from trove.instance import models as t_models
 from trove.openstack.common import periodic_task
 from trove.openstack.common import log as logging
@@ -66,3 +67,10 @@ class Manager(periodic_task.PeriodicTasks):
                 LOG.debug("Backup %s: %s" % (k, v))
                 setattr(backup, k, v)
         backup.save()
+
+    def report_user_created(self, context, instance_id, user):
+        LOG.debug("Instance ID: %s" % str(instance_id))
+        LOG.debug("Used: %s" % str(user))
+        if not instance_id:
+            if not user:
+                return RootHistory.create(context, instance_id, user)

@@ -9,6 +9,7 @@ from sqlalchemy import exc
 from sqlalchemy import interfaces
 from sqlalchemy.sql.expression import text
 
+from trove.conductor import api as conductor_api
 from trove.common import cfg
 from trove.common import utils as utils
 from trove.common import exception
@@ -844,4 +845,6 @@ class MySqlRootAccess(object):
 
     @classmethod
     def report_root_enabled(cls, context):
-        return RootHistory.create(context, CONF.guest_id, 'root')
+        user = 'root'
+        instance_id = CONF.guest_id
+        conductor_api.API(context).report_user_created(instance_id, user)

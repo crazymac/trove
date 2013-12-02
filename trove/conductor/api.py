@@ -50,3 +50,10 @@ class API(proxy.RpcProxy):
                                               instance_id=instance_id,
                                               backup_id=backup_id,
                                               **backup_fields))
+
+    def report_user_created(self, instance_id, user):
+        LOG.debug("Making async call to cast report_user_created for instance: %s"
+                  % instance_id)
+        self.cast(self.context, self.make_msg("report_user_created",
+                                              instance_id=instance_id,
+                                              user=user))
