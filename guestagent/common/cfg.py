@@ -1,0 +1,207 @@
+# Copyright 2013 OpenStack Foundation
+# Copyright 2013 Mirantis Inc
+# All Rights Reserved.
+#
+#    Licensed under the Apache License, Version 2.0 (the "License"); you may
+#    not use this file except in compliance with the License. You may obtain
+#    a copy of the License at
+#
+#         http://www.apache.org/licenses/LICENSE-2.0
+#
+#    Unless required by applicable law or agreed to in writing, software
+#    distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+#    WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+#    License for the specific language governing permissions and limitations
+#    under the License.
+"""Routines for configuring Trove Guestagent."""
+
+from oslo.config import cfg
+import os.path
+
+UNKNOWN_SERVICE_ID = 'unknown-service-id-error'
+
+path_opts = [
+    cfg.StrOpt('pybasedir',
+               default=os.path.abspath(os.path.join(os.path.dirname(__file__),
+                                                    '../')),
+               help='Directory where the trove python module is installed'),
+]
+
+common_opts = [
+    cfg.StrOpt('sql_connection',
+               default='sqlite:///guest_tests.sqlite',
+               help='SQL Connection',
+               secret=True),
+    cfg.IntOpt('sql_idle_timeout', default=3600),
+    cfg.BoolOpt('sql_query_log', default=False),
+    cfg.IntOpt('bind_port', default=8779),
+    cfg.ListOpt('admin_roles', default=['admin']),
+    cfg.StrOpt('nova_compute_url', default='http://localhost:8774/v2'),
+    cfg.StrOpt('cinder_url', default='http://localhost:8776/v2'),
+    cfg.StrOpt('heat_url', default='http://localhost:8004/v1'),
+    cfg.StrOpt('swift_url', default='http://localhost:8080/v1/AUTH_'),
+    cfg.StrOpt('trove_auth_url', default='http://0.0.0.0:5000/v2.0'),
+    cfg.StrOpt('host', default='0.0.0.0'),
+    cfg.IntOpt('report_interval', default=10,
+               help='The interval in seconds which periodic tasks are run'),
+    cfg.IntOpt('periodic_interval', default=60),
+    cfg.StrOpt('db_api_implementation',
+               default='guestagent.db.sqlalchemy.api'),
+    cfg.IntOpt('users_page_size', default=20),
+    cfg.IntOpt('databases_page_size', default=20),
+    cfg.IntOpt('instances_page_size', default=20),
+    cfg.ListOpt('ignore_users', default=['os_admin', 'root']),
+    cfg.ListOpt('ignore_dbs', default=['lost+found',
+                                       'mysql',
+                                       'information_schema']),
+    cfg.IntOpt('agent_call_low_timeout', default=5),
+    cfg.IntOpt('agent_call_high_timeout', default=60),
+    cfg.StrOpt('guest_id', default=None),
+    cfg.IntOpt('state_change_wait_time', default=3 * 60),
+    cfg.IntOpt('agent_heartbeat_time', default=10),
+    cfg.IntOpt('num_tries', default=3),
+    cfg.StrOpt('volume_fstype', default='ext3'),
+    cfg.StrOpt('format_options', default='-m 5'),
+    cfg.IntOpt('volume_format_timeout', default=120),
+    cfg.StrOpt('mount_options', default='defaults,noatime'),
+    cfg.IntOpt('max_instances_per_user', default=5,
+               help='default maximum number of instances per tenant'),
+    cfg.IntOpt('max_accepted_volume_size', default=5,
+               help='default maximum volume size for an instance'),
+    cfg.IntOpt('max_volumes_per_user', default=20,
+               help='default maximum for total volume used by a tenant'),
+    cfg.IntOpt('max_backups_per_user', default=5,
+               help='default maximum number of backups created by a tenant'),
+    cfg.StrOpt('taskmanager_queue', default='taskmanager'),
+    cfg.StrOpt('conductor_queue', default='trove-conductor'),
+    cfg.IntOpt('trove_conductor_workers', default=1),
+    cfg.StrOpt('device_path', default='/dev/vdb'),
+    cfg.StrOpt('mount_point', default='/var/lib/mysql'),
+    cfg.StrOpt('default_datastore', default=None,
+               help="The default datastore id or name to use if one is not "
+               "provided by the user. If the default value is None, the field"
+               " becomes required in the instance-create request."),
+    cfg.StrOpt('datastore_manager', default=None,
+               help='manager class in guestagent, setup by taskmanager on '
+               'instance provision'),
+    cfg.StrOpt('block_device_mapping', default='vdb'),
+    cfg.IntOpt('server_delete_time_out', default=60),
+    cfg.IntOpt('volume_time_out', default=60),
+    cfg.IntOpt('heat_time_out', default=60),
+    cfg.IntOpt('reboot_time_out', default=60 * 2),
+    cfg.IntOpt('dns_time_out', default=60 * 2),
+    cfg.IntOpt('resize_time_out', default=60 * 10),
+    cfg.IntOpt('revert_time_out', default=60 * 10),
+    cfg.BoolOpt('root_on_create', default=False,
+                help='Enable the automatic creation of the root user for the '
+                ' service during instance-create. The generated password for '
+                ' the root user is immediately returned in the response of '
+                " instance-create as the 'password' field."),
+    cfg.ListOpt('root_grant', default=['ALL']),
+    cfg.BoolOpt('root_grant_option', default=True),
+    cfg.IntOpt('default_password_length', default=36),
+    cfg.IntOpt('http_get_rate', default=200),
+    cfg.IntOpt('http_post_rate', default=200),
+    cfg.IntOpt('http_delete_rate', default=200),
+    cfg.IntOpt('http_put_rate', default=200),
+    cfg.BoolOpt('hostname_require_ipv4', default=True,
+                help="Require user hostnames to be IPv4 addresses."),
+    cfg.BoolOpt('trove_security_groups_support', default=True),
+    cfg.BoolOpt('trove_security_groups_rules_support', default=True),
+    cfg.StrOpt('trove_security_group_name_prefix', default='SecGroup'),
+    cfg.StrOpt('trove_security_group_rule_protocol', default='tcp'),
+    cfg.IntOpt('trove_security_group_rule_port', default=3306),
+    cfg.StrOpt('trove_security_group_rule_cidr', default='0.0.0.0/0'),
+    cfg.IntOpt('trove_api_workers', default=None),
+    cfg.IntOpt('usage_sleep_time', default=1,
+               help='Time to sleep during the check active guest'),
+    cfg.IntOpt('usage_timeout', default=300,
+               help='Timeout to wait for an guest to become active'),
+    cfg.StrOpt('region', default='LOCAL_DEV',
+               help='The region this service is located.'),
+    cfg.StrOpt('backup_runner',
+               default='trove.guestagent.backup.backup_types.InnoBackupEx'),
+    cfg.StrOpt('backup_strategy', default='InnoBackupEx',
+               help='Default strategy to perform backups'),
+    cfg.StrOpt('backup_namespace',
+               default='guestagent.agent.strategies.backup.impl',
+               help='Namespace to load backup strategies from'),
+    cfg.StrOpt('restore_namespace',
+               default='guestagent.agent.strategies.restore.impl',
+               help='Namespace to load restore strategies from'),
+    cfg.BoolOpt('verify_swift_checksum_on_restore', default=True,
+                help='Enable verification of swift checksum before starting '
+                ' restore; makes sure the checksum of original backup matches '
+                ' checksum of the swift backup file.'),
+    cfg.StrOpt('storage_strategy', default='SwiftStorage',
+               help="Default strategy to store backups"),
+    cfg.StrOpt('storage_namespace',
+               default='guestagent.agent.strategies.storage.swift',
+               help='Namespace to load the default storage strategy from'),
+    cfg.StrOpt('backup_swift_container', default='database_backups'),
+    cfg.BoolOpt('backup_use_gzip_compression', default=True,
+                help='Compress backups using gzip.'),
+    cfg.BoolOpt('backup_use_openssl_encryption', default=True,
+                help='Encrypt backups using openssl.'),
+    cfg.StrOpt('backup_aes_cbc_key', default='default_aes_cbc_key',
+               help='default openssl aes_cbc key.'),
+    cfg.BoolOpt('backup_use_snet', default=False,
+                help='Send backup files over snet.'),
+    cfg.IntOpt('backup_chunk_size', default=2 ** 16,
+               help='Chunk size to stream to swift container'),
+    cfg.IntOpt('backup_segment_max_size', default=2 * (1024 ** 3),
+               help="Maximum size of each segment of the backup file."),
+    cfg.StrOpt('remote_dns_client',
+               default='guestagent.common.remote.dns_client'),
+    cfg.StrOpt('remote_guest_client',
+               default='guestagent.common.remote.guest_client'),
+    cfg.StrOpt('remote_nova_client',
+               default='guestagent.common.remote.nova_client'),
+    cfg.StrOpt('remote_cinder_client',
+               default='guestagent.common.remote.cinder_client'),
+    cfg.StrOpt('remote_heat_client',
+               default='guestagent.common.remote.heat_client'),
+    cfg.StrOpt('remote_swift_client',
+               default='guestagent.common.remote.swift_client'),
+    cfg.StrOpt('exists_notification_transformer',
+               help='Transformer for exists notifications'),
+    cfg.IntOpt('exists_notification_ticks', default=360,
+               help='Number of report_intevals to wait between pushing events '
+                    '(see report_interval)'),
+    cfg.DictOpt('notification_service_id', default={},
+                help='Unique ID to tag notification events'),
+    cfg.StrOpt('nova_proxy_admin_user', default='',
+               help="Admin username used to connect to Nova", secret=True),
+    cfg.StrOpt('nova_proxy_admin_pass', default='',
+               help="Admin password used to connect to Nova", secret=True),
+    cfg.StrOpt('nova_proxy_admin_tenant_name', default='',
+               help="Admin tenant used to connect to Nova", secret=True),
+    cfg.StrOpt('network_label_regex', default='^private$'),
+    cfg.StrOpt('ip_regex', default=None),
+    cfg.StrOpt('cloudinit_location', default='/etc/trove/cloudinit',
+               help="Path to folder with cloudinit scripts"),
+    cfg.StrOpt('guest_config',
+               default='/etc/trove/trove-guestagent.conf',
+               help="Path to guestagent config file"),
+    cfg.DictOpt('datastore_registry_ext', default=dict(),
+                help='Extention for default datastore managers.'
+                     ' Allows to use custom managers for each of'
+                     ' datastore supported in trove'),
+    cfg.BoolOpt('sql_query_logging', default=False,
+                help='Allow insecure logging while while '
+                     'executing queries through sqlalchemy'),
+]
+
+CONF = cfg.CONF
+CONF.register_opts(path_opts)
+CONF.register_opts(common_opts)
+
+
+def custom_parser(parsername, parser):
+    CONF.register_cli_opt(cfg.SubCommandOpt(parsername, handler=parser))
+
+
+def parse_args(argv, default_config_files=None):
+    cfg.CONF(args=argv[1:],
+             project='trove',
+             default_config_files=default_config_files)

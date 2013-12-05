@@ -1,7 +1,5 @@
 #!/usr/bin/env python
-# vim: tabstop=4 shiftwidth=4 softtabstop=4
-
-# Copyright 2011 OpenStack Foundation
+# Copyright 2013 OpenStack Foundation
 # All Rights Reserved.
 #
 #    Licensed under the Apache License, Version 2.0 (the "License"); you may
@@ -23,33 +21,32 @@ import gettext
 import os
 import sys
 
-gettext.install('trove', unicode=1)
 
-# If ../trove/__init__.py exists, add ../ to Python search path, so that
+gettext.install('guestagent', unicode=1)
+
+# If ../guestagent/__init__.py exists, add ../ to Python search path, so that
 # it will override what happens to be installed in /usr/(local/)lib/python...
 possible_topdir = os.path.normpath(os.path.join(os.path.abspath(sys.argv[0]),
                                                 os.pardir,
                                                 os.pardir))
-if os.path.exists(os.path.join(possible_topdir, 'trove', '__init__.py')):
+if os.path.exists(os.path.join(possible_topdir, 'guestagent', '__init__.py')):
     sys.path.insert(0, possible_topdir)
 
-from trove.common import cfg
-from trove.common.rpc import service as rpc_service
+from guestagent.common import cfg
+from guestagent.common.rpc import service as rpc_service
 from oslo.config import cfg as openstack_cfg
-from trove.openstack.common import log as logging
-from trove.openstack.common import service as openstack_service
-from trove.db import get_db_api
+from guestagent.openstack.common import log as logging
+from guestagent.openstack.common import service as openstack_service
 
 CONF = cfg.CONF
 CONF.register_opts([openstack_cfg.StrOpt('guest_id')])
 
 if __name__ == '__main__':
     cfg.parse_args(sys.argv)
-    from trove.guestagent import dbaas
+    from guestagent.agent import dbaas
     logging.setup(None)
 
     try:
-        get_db_api().configure_db(CONF)
         manager = dbaas.datastore_registry().get(CONF.datastore_manager)
         if not manager:
             msg = ("Manager class not registered for datastore manager " +

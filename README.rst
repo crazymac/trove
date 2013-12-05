@@ -1,8 +1,7 @@
-Trove
---------
+OpenStack DBaaS Trove VM-side Guestagent
+----------------------------------------
 
-Trove is Database as a Service for Open Stack.
-
+Trove Database as a Service VM-side Clientfor Open Stack.
 
 To run all tests and PEP8, run tox, like so:
 $ tox
@@ -12,14 +11,3 @@ $ tox -epy27
 
 To quickly run PEP8, run:
 $ tox -epep8
-
-To generate a coverage report,run:
-$ tox -ecover
-(note: on some boxes, the results may not be accurate unless you run it twice)
-
-If you'd like to start up a fake Trove API daemon for integration testing
-with your own tool, run:
-$ ./bin/start_server
-
-Stop the server with:
-$ ./bin/stop_server
