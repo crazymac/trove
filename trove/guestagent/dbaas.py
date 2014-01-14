@@ -37,6 +37,7 @@ defaults = {
     'mysql': 'trove.guestagent.datastore.mysql.manager.Manager',
     'percona': 'trove.guestagent.datastore.mysql.manager.Manager',
     'redis': 'trove.guestagent.datastore.redis.manager.Manager',
+    'mongodb': 'trove.guestagent.datastore.mongodb.manager.Manager',
 }
 CONF = cfg.CONF
 

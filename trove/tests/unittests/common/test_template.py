@@ -12,7 +12,6 @@
 
 
 import testtools
-import mock
 import re
 
 from trove.common import template
@@ -68,13 +67,6 @@ class HeatTemplateLoadTest(testtools.TestCase):
 
     def setUp(self):
         super(HeatTemplateLoadTest, self).setUp()
-        self.fException = mock.Mock(side_effect=
-                                    lambda *args, **kwargs:
-                                    _raise(template.jinja2.
-                                           TemplateNotFound("Test")))
-
-        def _raise(ex):
-            raise ex
 
     def tearDown(self):
         super(HeatTemplateLoadTest, self).tearDown()
@@ -85,5 +77,7 @@ class HeatTemplateLoadTest(testtools.TestCase):
                           'mysql-blah')
 
     def test_heat_template_load_success(self):
-        htmpl = template.load_heat_template('mysql')
-        self.assertNotEqual(None, htmpl)
+        mongo_tmpl = template.load_heat_template('mongodb')
+        mysql_tmpl = template.load_heat_template('mysql')
+        self.assertIsNotNone(mysql_tmpl)
+        self.assertIsNotNone(mongo_tmpl)

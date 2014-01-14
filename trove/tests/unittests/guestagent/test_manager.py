@@ -25,6 +25,8 @@ import trove.guestagent.datastore.mysql.service as dbaas
 from trove.guestagent.datastore.redis.manager import Manager as RedisManager
 import trove.guestagent.datastore.redis.service as redis_service
 import trove.guestagent.datastore.redis.system as redis_system
+from trove.guestagent.datastore.mongodb import service as mongo_service
+from trove.guestagent.datastore.mongodb import manager as mongo_manager
 from trove.guestagent import backup
 from trove.guestagent.volume import VolumeDevice
 from trove.guestagent import pkg
@@ -314,3 +316,87 @@ class RedisGuestAgentManagerTest(testtools.TestCase):
         self.manager.stop_db(self.context)
         verify(redis_service.RedisAppStatus).get()
         verify(redis_service.RedisApp).stop_db(do_not_start_on_reboot=False)
+
+
+class GuestAgentMongoDBManagerTest(testtools.TestCase):
+
+    def setUp(self):
+        super(GuestAgentMongoDBManagerTest, self).setUp()
+        self.context = TroveContext()
+        self.manager = mongo_manager.Manager()
+        self.origin_MongoDbAppStatus = mongo_service.MongoDbAppStatus
+        self.origin_os_path_exists = os.path.exists
+        self.origin_format = volume.VolumeDevice.format
+        self.origin_migrate_data = volume.VolumeDevice.migrate_data
+        self.origin_mount = volume.VolumeDevice.mount
+        self.origin_stop_db = mongo_service.MongoDBApp.stop_db
+        self.origin_start_db = mongo_service.MongoDBApp.start_db
+
+    def tearDown(self):
+        super(GuestAgentMongoDBManagerTest, self).tearDown()
+        mongo_service.MongoDbAppStatus = self.origin_MongoDbAppStatus
+        os.path.exists = self.origin_os_path_exists
+        volume.VolumeDevice.format = self.origin_format
+        volume.VolumeDevice.migrate_data = self.origin_migrate_data
+        volume.VolumeDevice.mount = self.origin_mount
+        mongo_service.MongoDBApp.stop_db = self.origin_stop_db
+        mongo_service.MongoDBApp.start_db = self.origin_start_db
+        unstub()
+
+    def test_update_status(self):
+        self.manager.status = mock()
+        self.manager.update_status(self.context)
+        verify(self.manager.status).update()
+
+    def test_prepare_device_path_true(self):
+        self._prepare_dynamic()
+
+    def test_prepare_device_path_false(self):
+        self._prepare_dynamic(device_path=None)
+
+    def test_prepare_db_not_installed(self):
+        self._prepare_dynamic(is_db_installed=False)
+
+    def test_prepare_from_backup(self):
+        self._prepare_dynamic(backup_id='backup_id_123abc')
+
+    def _prepare_dynamic(self, device_path='/dev/vdb', is_db_installed=True,
+                         backup_id=None):
+
+        # covering all outcomes is starting to cause trouble here
+        COUNT = 1 if device_path else 0
+        SEC_COUNT = 1 if is_db_installed else 0
+
+        backup_info = {'id': backup_id,
+                       'location': 'fake-location',
+                       'type': 'MongoDBDump',
+                       'checksum': 'fake-checksum'} if backup_id else None
+
+        mock_status = mock()
+        self.manager.status = mock_status
+        when(mock_status).begin_install().thenReturn(None)
+
+        when(VolumeDevice).format().thenReturn(None)
+        when(VolumeDevice).migrate_data(any()).thenReturn(None)
+        when(VolumeDevice).mount().thenReturn(None)
+
+        mock_app = mock()
+        self.manager.app = mock_app
+        when(mock_app).stop_db().thenReturn(None)
+        when(mock_app).start_db().thenReturn(None)
+        when(os.path).exists(any()).thenReturn(is_db_installed)
+
+        # invocation
+        self.manager.prepare(context=self.context, databases=None,
+                             packages=['package'],
+                             memory_mb='2048', users=None,
+                             device_path=device_path,
+                             mount_point='/var/lib/mongodb',
+                             backup_info=backup_info)
+        # verification/assertion
+        verify(mock_status).begin_install()
+
+        verify(VolumeDevice, times=COUNT).format()
+        verify(mock_app).stop_db()
+        verify(VolumeDevice, times=(COUNT * SEC_COUNT)).migrate_data(any())
+        verify(mock_app).install_if_needed(any())
