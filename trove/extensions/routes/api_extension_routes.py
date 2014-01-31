@@ -1,5 +1,3 @@
-# vim: tabstop=4 shiftwidth=4 softtabstop=4
-
 # Copyright 2011 OpenStack Foundation
 # All Rights Reserved.
 #
@@ -19,22 +17,22 @@ from trove.openstack.common import log as logging
 
 from trove.common import extensions
 from trove.common import wsgi
-from trove.extensions.mysql import service
+from trove.extensions import common_controller
 
 
 LOG = logging.getLogger(__name__)
 
 
-class Mysql(extensions.ExtensionsDescriptor):
+class TroveAPIExtension(extensions.ExtensionsDescriptor):
 
     def get_name(self):
-        return "Mysql"
+        return "TroveAPIExtension"
 
     def get_description(self):
-        return "Non essential MySQL services such as users and schemas"
+        return "Non essential datastore services such as users and schemas"
 
     def get_alias(self):
-        return "MYSQL"
+        return "TroveAPIExtension"
 
     def get_namespace(self):
         return "http://TBD"
@@ -50,7 +48,7 @@ class Mysql(extensions.ExtensionsDescriptor):
 
         resource = extensions.ResourceExtension(
             'databases',
-            service.SchemaController(),
+            common_controller.CommonSchemaController(),
             parent={'member_name': 'instance',
                     'collection_name': '{tenant_id}/instances'},
             deserializer=wsgi.TroveRequestDeserializer(),
@@ -59,7 +57,7 @@ class Mysql(extensions.ExtensionsDescriptor):
 
         resource = extensions.ResourceExtension(
             'users',
-            service.UserController(),
+            common_controller.CommonUserController(),
             parent={'member_name': 'instance',
                     'collection_name': '{tenant_id}/instances'},
             # deserializer=extensions.ExtensionsXMLSerializer()
@@ -72,7 +70,7 @@ class Mysql(extensions.ExtensionsDescriptor):
         collection_url = '{tenant_id}/instances/:instance_id/users'
         resource = extensions.ResourceExtension(
             'databases',
-            service.UserAccessController(),
+            common_controller.CommonUserAccessController(),
             parent={'member_name': 'user',
                     'collection_name': collection_url},
             deserializer=wsgi.TroveRequestDeserializer(),
@@ -82,7 +80,7 @@ class Mysql(extensions.ExtensionsDescriptor):
 
         resource = extensions.ResourceExtension(
             'root',
-            service.RootController(),
+            common_controller.CommonRootController(),
             parent={'member_name': 'instance',
                     'collection_name': '{tenant_id}/instances'},
             deserializer=wsgi.TroveRequestDeserializer(),
