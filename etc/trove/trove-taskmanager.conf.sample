@@ -95,6 +95,9 @@ network_label_regex = ^private$
 # Datastore templates
 template_path = /etc/trove/templates/
 
+# ============ Configuration templates parameter section =====================
+allow_database_logging = False
+
 # ============ notifer queue kombu connection options ========================
 
 notifier_queue_hostname = localhost

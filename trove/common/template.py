@@ -65,8 +65,13 @@ class SingleInstanceConfigTemplate(object):
         template = ENV.get_template(self.template_name %
                                     self.datastore_manager)
         server_id = self._calculate_unique_id()
+        yes_or_not = CONF.get(
+            'mysql' if not self.datastore_manager
+            else self.datastore_manager).allow_database_logging
         self.config_contents = template.render(
-            flavor=self.flavor_dict, server_id=server_id, **kwargs)
+            flavor=self.flavor_dict, server_id=server_id,
+            allow_database_logging=yes_or_not,
+            **kwargs)
         return self.config_contents
 
     def render_dict(self):

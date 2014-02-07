@@ -44,6 +44,17 @@ default_storage_engine = innodb
 local-infile = 0
 server_id = {{server_id}}
 
+{% if allow_database_logging %}
+
+general_log_file = /var/log/mysql/mysql.log
+general_log = 1
+log_slow_queries = /var/log/mysql/mysql-slow.log
+long_query_time = 2
+log-queries-not-using-indexes
+log-error = /var/log/mysql/mysql-error.log
+
+{% endif %}
+
 [mysqldump]
 quick = 1
 quote-names = 1
