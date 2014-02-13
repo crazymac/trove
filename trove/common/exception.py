@@ -154,8 +154,8 @@ class VolumeQuotaExceeded(QuotaExceeded):
 
 class GuestError(TroveError):
 
-    message = _("An error occurred communicating with the guest: "
-                "%(original_message)s.")
+    message = _("An error occurred communicating with the guest."
+                " Or operation is not supported")
 
 
 class GuestTimeout(TroveError):

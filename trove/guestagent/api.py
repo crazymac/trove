@@ -18,7 +18,7 @@
 """
 Handles all request to the Platform or Guest VM
 """
-
+import sys
 from eventlet import Timeout
 
 from trove.common import cfg
@@ -57,7 +57,8 @@ class API(proxy.RpcProxy):
             return result
         except Exception as e:
             LOG.error(e)
-            raise exception.GuestError(original_message=str(e))
+            sys.exc_clear()
+            raise exception.GuestError()
         except Timeout as t:
             if t is not timeout:
                 raise
@@ -72,7 +73,8 @@ class API(proxy.RpcProxy):
                       version=kwargs.get('version'))
         except Exception as e:
             LOG.error(e)
-            raise exception.GuestError(original_message=str(e))
+            sys.exc_clear()
+            raise exception.GuestError()
 
     def _cast_with_consumer(self, method_name, **kwargs):
         conn = None
@@ -81,7 +83,8 @@ class API(proxy.RpcProxy):
             conn.create_consumer(self._get_routing_key(), None, fanout=False)
         except Exception as e:
             LOG.error(e)
-            raise exception.GuestError(original_message=str(e))
+            sys.exc_clear()
+            raise exception.GuestError()
         finally:
             if conn:
                 conn.close()

@@ -45,8 +45,11 @@ class RootController(wsgi.Controller):
         LOG.info(_("Getting root enabled for instance '%s'") % instance_id)
         LOG.info(_("req : '%s'\n\n") % req)
         context = req.environ[wsgi.CONTEXT_KEY]
-        is_root_enabled = models.Root.load(context, instance_id)
-        return wsgi.Result(views.RootEnabledView(is_root_enabled).data(), 200)
+        try:
+            is_root_enabled = models.Root.load(context, instance_id)
+            return wsgi.Result(views.RootEnabledView(is_root_enabled).data(), 200)
+        except exception.TroveError as e:
+            raise exception.BadRequest(message=str(e))
 
     def create(self, req, tenant_id, instance_id):
         """Enable the root user for the db instance """
@@ -54,9 +57,11 @@ class RootController(wsgi.Controller):
         LOG.info(_("req : '%s'\n\n") % req)
         context = req.environ[wsgi.CONTEXT_KEY]
         user_name = context.user
-        root = models.Root.create(context, instance_id, user_name)
-        return wsgi.Result(views.RootCreatedView(root).data(), 200)
-
+        try:
+            root = models.Root.create(context, instance_id, user_name)
+            return wsgi.Result(views.RootCreatedView(root).data(), 200)
+        except exception.TroveError as e:
+            raise exception.BadRequest(message=str(e))
 
 class UserController(wsgi.Controller):
     """Controller for instance functionality"""
@@ -75,11 +80,14 @@ class UserController(wsgi.Controller):
         LOG.info(_("Listing users for instance '%s'") % instance_id)
         LOG.info(_("req : '%s'\n\n") % req)
         context = req.environ[wsgi.CONTEXT_KEY]
-        users, next_marker = models.Users.load(context, instance_id)
-        view = views.UsersView(users)
-        paged = pagination.SimplePaginatedDataView(req.url, 'users', view,
-                                                   next_marker)
-        return wsgi.Result(paged.data(), 200)
+        try:
+            users, next_marker = models.Users.load(context, instance_id)
+            view = views.UsersView(users)
+            paged = pagination.SimplePaginatedDataView(req.url, 'users', view,
+                                                       next_marker)
+            return wsgi.Result(paged.data(), 200)
+        except exception.TroveError as e:
+            raise exception.BadRequest(message=str(e))
 
     def create(self, req, body, tenant_id, instance_id):
         """Creates a set of users"""
@@ -91,9 +99,9 @@ class UserController(wsgi.Controller):
         try:
             model_users = populate_users(users)
             models.User.create(context, instance_id, model_users)
-        except (ValueError, AttributeError) as e:
-            raise exception.BadRequest(msg=str(e))
-        return wsgi.Result(None, 202)
+            return wsgi.Result(None, 202)
+        except (exception.TroveError, ValueError, AttributeError) as e:
+            raise exception.BadRequest(message=str(e))
 
     def delete(self, req, tenant_id, instance_id, id):
         LOG.info(_("Deleting user for instance '%s'") % instance_id)
@@ -110,12 +118,14 @@ class UserController(wsgi.Controller):
                                           host)
             if not found_user:
                 user = None
-        except (ValueError, AttributeError) as e:
-            raise exception.BadRequest(msg=str(e))
-        if not user:
-            raise exception.UserNotFound(uuid=id)
-        models.User.delete(context, instance_id, user.serialize())
-        return wsgi.Result(None, 202)
+        except (exception.TroveError, ValueError, AttributeError) as e:
+            raise exception.BadRequest(message=str(e))
+        if user:
+            models.User.delete(context, instance_id, user.serialize())
+            return wsgi.Result(None, 202)
+        else:
+            raise exception.BadRequest(
+                exception.UserNotFound.message % {'uuid': id})
 
     def show(self, req, tenant_id, instance_id, id):
         """Return a single user."""
@@ -127,12 +137,13 @@ class UserController(wsgi.Controller):
         user = None
         try:
             user = models.User.load(context, instance_id, username, host)
-        except (ValueError, AttributeError) as e:
-            raise exception.BadRequest(msg=str(e))
-        if not user:
-            raise exception.UserNotFound(uuid=id)
-        view = views.UserView(user)
-        return wsgi.Result(view.data(), 200)
+            if not user:
+                raise exception.UserNotFound(uuid=id)
+            view = views.UserView(user)
+            return wsgi.Result(view.data(), 200)
+        except (exception.TroveError, ValueError, AttributeError) as e:
+            raise exception.BadRequest(message=str(e))
+
 
     def update(self, req, body, tenant_id, instance_id, id):
         """Change attributes for one user."""
@@ -145,16 +156,13 @@ class UserController(wsgi.Controller):
         user_attrs = body['user']
         try:
             user = models.User.load(context, instance_id, username, hostname)
-        except (ValueError, AttributeError) as e:
-            raise exception.BadRequest(msg=str(e))
-        if not user:
-            raise exception.UserNotFound(uuid=id)
-        try:
+            if not user:
+                raise exception.UserNotFound(uuid=id)
             models.User.update_attributes(context, instance_id, username,
                                           hostname, user_attrs)
-        except (ValueError, AttributeError) as e:
+            return wsgi.Result(None, 202)
+        except (exception.TroveError, ValueError, AttributeError) as e:
             raise exception.BadRequest(msg=str(e))
-        return wsgi.Result(None, 202)
 
     def update_all(self, req, body, tenant_id, instance_id):
         """Change the password of one or more users."""
@@ -177,10 +185,10 @@ class UserController(wsgi.Controller):
                         user_and_host += '@' + mu.host
                     raise exception.UserNotFound(uuid=user_and_host)
                 model_users.append(mu)
-            except (ValueError, AttributeError) as e:
-                raise exception.BadRequest(msg=str(e))
-        models.User.change_password(context, instance_id, model_users)
-        return wsgi.Result(None, 202)
+                models.User.change_password(context, instance_id, model_users)
+                return wsgi.Result(None, 202)
+            except (exception.TroveError, ValueError, AttributeError) as e:
+                raise exception.BadRequest(message=str(e))
 
 
 class UserAccessController(wsgi.Controller):
@@ -198,11 +206,11 @@ class UserAccessController(wsgi.Controller):
         username, hostname = unquote_user_host(user_id)
         try:
             user = models.User.load(context, instance_id, username, hostname)
-        except (ValueError, AttributeError) as e:
-            raise exception.BadRequest(msg=str(e))
-        if not user:
-            raise exception.UserNotFound(uuid=user_id)
-        return user
+            if not user:
+                raise exception.UserNotFound(uuid=user_id)
+            return user
+        except (exception.TroveError, ValueError, AttributeError) as e:
+            raise exception.BadRequest(message=str(e))
 
     def index(self, req, tenant_id, instance_id, user_id):
         """Show permissions for the given user."""
@@ -211,47 +219,56 @@ class UserAccessController(wsgi.Controller):
         context = req.environ[wsgi.CONTEXT_KEY]
         # Make sure this user exists.
         user_id = correct_id_with_req(user_id, req)
-        user = self._get_user(context, instance_id, user_id)
-        if not user:
-            LOG.error(_("No such user: %(user)s ") % {'user': user})
-            raise exception.UserNotFound(uuid=user)
-        username, hostname = unquote_user_host(user_id)
-        access = models.User.access(context, instance_id, username, hostname)
-        view = views.UserAccessView(access.databases)
-        return wsgi.Result(view.data(), 200)
+        try:
+            user = self._get_user(context, instance_id, user_id)
+            if not user:
+                LOG.error(_("No such user: %(user)s ") % {'user': user})
+                raise exception.UserNotFound(uuid=user)
+            username, hostname = unquote_user_host(user_id)
+            access = models.User.access(context, instance_id, username, hostname)
+            view = views.UserAccessView(access.databases)
+            return wsgi.Result(view.data(), 200)
+        except (exception.TroveError, ValueError, AttributeError) as e:
+            raise exception.BadRequest(message=str(e))
 
     def update(self, req, body, tenant_id, instance_id, user_id):
         """Grant access for a user to one or more databases."""
         LOG.info(_("Granting user access for instance '%s'") % instance_id)
         LOG.info(_("req : '%s'\n\n") % req)
         context = req.environ[wsgi.CONTEXT_KEY]
-        user_id = correct_id_with_req(user_id, req)
-        user = self._get_user(context, instance_id, user_id)
-        if not user:
-            LOG.error(_("No such user: %(user)s ") % {'user': user})
-            raise exception.UserNotFound(uuid=user)
-        username, hostname = unquote_user_host(user_id)
-        databases = [db['name'] for db in body['databases']]
-        models.User.grant(context, instance_id, username, hostname, databases)
-        return wsgi.Result(None, 202)
+        try:
+            user_id = correct_id_with_req(user_id, req)
+            user = self._get_user(context, instance_id, user_id)
+            if not user:
+                LOG.error(_("No such user: %(user)s ") % {'user': user})
+                raise exception.UserNotFound(uuid=user)
+            username, hostname = unquote_user_host(user_id)
+            databases = [db['name'] for db in body['databases']]
+            models.User.grant(context, instance_id, username, hostname, databases)
+            return wsgi.Result(None, 202)
+        except (exception.TroveError, ValueError, AttributeError) as e:
+            raise exception.BadRequest(message=str(e))
 
     def delete(self, req, tenant_id, instance_id, user_id, id):
         """Revoke access for a user."""
         LOG.info(_("Revoking user access for instance '%s'") % instance_id)
         LOG.info(_("req : '%s'\n\n") % req)
         context = req.environ[wsgi.CONTEXT_KEY]
-        user_id = correct_id_with_req(user_id, req)
-        user = self._get_user(context, instance_id, user_id)
-        if not user:
-            LOG.error(_("No such user: %(user)s ") % {'user': user})
-            raise exception.UserNotFound(uuid=user)
-        username, hostname = unquote_user_host(user_id)
-        access = models.User.access(context, instance_id, username, hostname)
-        databases = [db.name for db in access.databases]
-        if id not in databases:
-            raise exception.DatabaseNotFound(uuid=id)
-        models.User.revoke(context, instance_id, username, hostname, id)
-        return wsgi.Result(None, 202)
+        try:
+            user_id = correct_id_with_req(user_id, req)
+            user = self._get_user(context, instance_id, user_id)
+            if not user:
+                LOG.error(_("No such user: %(user)s ") % {'user': user})
+                raise exception.UserNotFound(uuid=user)
+            username, hostname = unquote_user_host(user_id)
+            access = models.User.access(context, instance_id, username, hostname)
+            databases = [db.name for db in access.databases]
+            if id not in databases:
+                raise exception.DatabaseNotFound(uuid=id)
+            models.User.revoke(context, instance_id, username, hostname, id)
+            return wsgi.Result(None, 202)
+        except (exception.TroveError, ValueError, AttributeError) as e:
+            raise exception.BadRequest(message=str(e))
 
 
 class SchemaController(wsgi.Controller):
@@ -263,11 +280,14 @@ class SchemaController(wsgi.Controller):
         LOG.info(_("Listing schemas for instance '%s'") % instance_id)
         LOG.info(_("req : '%s'\n\n") % req)
         context = req.environ[wsgi.CONTEXT_KEY]
-        schemas, next_marker = models.Schemas.load(context, instance_id)
-        view = views.SchemasView(schemas)
-        paged = pagination.SimplePaginatedDataView(req.url, 'databases', view,
-                                                   next_marker)
-        return wsgi.Result(paged.data(), 200)
+        try:
+            schemas, next_marker = models.Schemas.load(context, instance_id)
+            view = views.SchemasView(schemas)
+            paged = pagination.SimplePaginatedDataView(req.url, 'databases', view,
+                                                       next_marker)
+            return wsgi.Result(paged.data(), 200)
+        except (exception.TroveError, ValueError, AttributeError) as e:
+            raise exception.BadRequest(message=str(e))
 
     def create(self, req, body, tenant_id, instance_id):
         """Creates a set of schemas"""
@@ -277,8 +297,11 @@ class SchemaController(wsgi.Controller):
         context = req.environ[wsgi.CONTEXT_KEY]
         schemas = body['databases']
         model_schemas = populate_validated_databases(schemas)
-        models.Schema.create(context, instance_id, model_schemas)
-        return wsgi.Result(None, 202)
+        try:
+            models.Schema.create(context, instance_id, model_schemas)
+            return wsgi.Result(None, 202)
+        except (exception.TroveError, ValueError, AttributeError) as e:
+            raise exception.BadRequest(message=str(e))
 
     def delete(self, req, tenant_id, instance_id, id):
         LOG.info(_("Deleting schema for instance '%s'") % instance_id)
@@ -288,9 +311,10 @@ class SchemaController(wsgi.Controller):
             schema = guest_models.ValidatedMySQLDatabase()
             schema.name = id
             models.Schema.delete(context, instance_id, schema.serialize())
-        except (ValueError, AttributeError) as e:
-            raise exception.BadRequest(msg=str(e))
-        return wsgi.Result(None, 202)
+            return wsgi.Result(None, 202)
+        except (exception.TroveError, ValueError, AttributeError) as e:
+            raise exception.BadRequest(message=str(e))
+
 
     def show(self, req, tenant_id, instance_id, id):
         raise webob.exc.HTTPNotImplemented()
