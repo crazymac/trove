@@ -56,7 +56,6 @@ ignore_users = os_admin
 ignore_dbs = lost+found, mysql, information_schema
 
 # Strategy information for backups
-backup_strategy = InnoBackupEx
 backup_namespace = trove.guestagent.strategies.backup.mysql_impl
 # Additional commandline options to be passed to the backup runner (by strategy). For example:
 # backup_runner_options = InnoBackupEx:--no-lock,  MySQLDump:--events --routines --triggers
@@ -70,3 +69,11 @@ backup_aes_cbc_key = "default_aes_cbc_key"
 backup_use_snet = False
 backup_chunk_size = 65536
 backup_segment_max_size = 2147483648
+
+[mysql]
+backup_strategy = InnoBackupEx
+[cassandra]
+backup_strategy = NodetoolSnapshot
+[redis]
+backup_strategy = NA
+

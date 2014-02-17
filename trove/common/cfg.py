@@ -265,6 +265,19 @@ CONF.register_opts(path_opts)
 CONF.register_opts(common_opts)
 
 
+# Mysql
+mysql_group = cfg.OptGroup(
+    'mysql', title='MySQL options',
+    help="Oslo option group designed for MySQL datastore")
+mysql_opts = [
+    cfg.StrOpt('backup_strategy', default='InnoBackupEx',
+               help='Default strategy to perform backups.'),
+]
+
+CONF.register_group(mysql_group)
+CONF.register_opts(mysql_opts, mysql_group)
+
+
 def custom_parser(parsername, parser):
     CONF.register_cli_opt(cfg.SubCommandOpt(parsername, handler=parser))
 
