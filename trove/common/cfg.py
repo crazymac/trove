@@ -118,7 +118,6 @@ common_opts = [
     cfg.BoolOpt('use_nova_server_volume', default=False),
     cfg.BoolOpt('use_heat', default=False),
     cfg.StrOpt('device_path', default='/dev/vdb'),
-    cfg.StrOpt('mount_point', default='/var/lib/mysql'),
     cfg.StrOpt('default_datastore', default=None,
                help="The default datastore id or name to use if one is not "
                "provided by the user. If the default value is None, the field"
@@ -272,10 +271,36 @@ mysql_group = cfg.OptGroup(
 mysql_opts = [
     cfg.StrOpt('backup_strategy', default='InnoBackupEx',
                help='Default strategy to perform backups.'),
+    cfg.StrOpt('mount_point', default='/var/lib/mysql'),
+]
+
+# Cassandra
+cassandra_group = cfg.OptGroup(
+    'cassandra', title='Cassandra options',
+    help="Oslo option group designed for Cassandra datastore")
+cassandra_opts = [
+    cfg.StrOpt('backup_strategy', default='NodetoolSnapshot',
+               help='Default strategy to perform backups.'),
+    cfg.StrOpt('mount_point', default='/var/lib/cassandra'),
+]
+
+# Redis
+redis_group = cfg.OptGroup(
+    'redis', title='Redis options',
+    help="Oslo option group designed for Redis datastore")
+redis_opts = [
+    cfg.StrOpt('backup_strategy', default='NA',
+               help='Default strategy to perform backups.'),
+    cfg.StrOpt('mount_point', default='/var/lib/redis'),
 ]
 
 CONF.register_group(mysql_group)
+CONF.register_group(cassandra_group)
+CONF.register_group(redis_group)
+
 CONF.register_opts(mysql_opts, mysql_group)
+CONF.register_opts(cassandra_opts, cassandra_group)
+CONF.register_opts(redis_opts, redis_group)
 
 
 def custom_parser(parsername, parser):

@@ -71,9 +71,15 @@ backup_chunk_size = 65536
 backup_segment_max_size = 2147483648
 
 [mysql]
+mount_point = /var/lib/mysql
 backup_strategy = InnoBackupEx
+
 [cassandra]
+mount_point = /var/lib/cassandra
 backup_strategy = NodetoolSnapshot
+
 [redis]
+mount_point = /var/lib/redis
 backup_strategy = NA
+
 

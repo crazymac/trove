@@ -28,7 +28,6 @@ from trove.guestagent.datastore.mysql.manager import Manager
 import trove.guestagent.datastore.mysql.service as dbaas
 from trove.guestagent.datastore.redis.manager import Manager as RedisManager
 import trove.guestagent.datastore.redis.service as redis_service
-import trove.guestagent.datastore.redis.system as redis_system
 from trove.guestagent import backup
 from trove.guestagent.volume import VolumeDevice
 from trove.guestagent import pkg
@@ -264,7 +263,8 @@ class RedisGuestAgentManagerTest(testtools.TestCase):
         self._prepare_dynamic(is_redis_installed=False)
 
     def _prepare_dynamic(self, device_path='/dev/vdb', is_redis_installed=True,
-                         backup_info=None, is_root_enabled=False):
+                         backup_info=None, is_root_enabled=False,
+                         mount_point='var/lib/redis'):
 
         # covering all outcomes is starting to cause trouble here
         dev_path = 1 if device_path else 0
@@ -287,7 +287,6 @@ class RedisGuestAgentManagerTest(testtools.TestCase):
         verify(redis_service.RedisAppStatus, times=2).get()
         verify(mock_status).begin_install()
         verify(VolumeDevice, times=dev_path).format()
-        verify(VolumeDevice, times=dev_path).mount(redis_system.REDIS_BASE_DIR)
         verify(redis_service.RedisApp).install_if_needed(self.packages)
         verify(redis_service.RedisApp).write_config(None)
         verify(redis_service.RedisApp).complete_install_or_restart()

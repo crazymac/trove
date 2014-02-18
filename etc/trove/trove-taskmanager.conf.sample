@@ -131,3 +131,12 @@ pydev_debug = disabled
 # ================= Guestagent related ========================
 #guest_config = $pybasedir/etc/trove/trove-guestagent.conf.sample
 #cloudinit_location = /etc/trove/cloudinit
+
+[mysql]
+mount_point = /var/lib/mysql
+
+[cassandra]
+mount_point = /var/lib/cassandra
+
+[redis]
+mount_point = /var/lib/redis
