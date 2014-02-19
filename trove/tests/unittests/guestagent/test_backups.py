@@ -18,21 +18,21 @@ import mock
 import trove.guestagent.strategies.backup.base as backupBase
 import trove.guestagent.strategies.restore.base as restoreBase
 
-from trove.guestagent.strategies.backup import mysql_impl
+from trove.guestagent.strategies.backup import impl
 from trove.common import utils
 
 BACKUP_XTRA_CLS = ("trove.guestagent.strategies.backup."
-                   "mysql_impl.InnoBackupEx")
+                   "impl.InnoBackupEx")
 RESTORE_XTRA_CLS = ("trove.guestagent.strategies.restore."
-                    "mysql_impl.InnoBackupEx")
+                    "impl.InnoBackupEx")
 BACKUP_XTRA_INCR_CLS = ("trove.guestagent.strategies.backup."
-                        "mysql_impl.InnoBackupExIncremental")
+                        "impl.InnoBackupExIncremental")
 RESTORE_XTRA_INCR_CLS = ("trove.guestagent.strategies.restore."
-                         "mysql_impl.InnoBackupExIncremental")
+                         "impl.InnoBackupExIncremental")
 BACKUP_SQLDUMP_CLS = ("trove.guestagent.strategies.backup."
-                      "mysql_impl.MySQLDump")
+                      "impl.MySQLDump")
 RESTORE_SQLDUMP_CLS = ("trove.guestagent.strategies.restore."
-                       "mysql_impl.MySQLDump")
+                       "impl.MySQLDump")
 PIPE = " | "
 ZIP = "gzip"
 UNZIP = "gzip -d -c"
@@ -69,13 +69,13 @@ class GuestAgentBackupTest(testtools.TestCase):
 
     def setUp(self):
         super(GuestAgentBackupTest, self).setUp()
-        self.orig = mysql_impl.get_auth_password
-        mysql_impl.get_auth_password = mock.Mock(
+        self.orig = impl.get_auth_password
+        impl.get_auth_password = mock.Mock(
             return_value='password')
 
     def tearDown(self):
         super(GuestAgentBackupTest, self).tearDown()
-        mysql_impl.get_auth_password = self.orig
+        impl.get_auth_password = self.orig
 
     def test_backup_decrypted_xtrabackup_command(self):
         backupBase.BackupRunner.is_zipped = True

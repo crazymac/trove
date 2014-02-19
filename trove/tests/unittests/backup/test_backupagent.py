@@ -22,7 +22,8 @@ import testtools
 
 from trove.common.context import TroveContext
 from trove.conductor import api as conductor_api
-from trove.guestagent.strategies.backup import mysql_impl
+from trove.guestagent.common import operating_system
+from trove.guestagent.strategies.backup import impl
 from trove.guestagent.strategies.restore.base import RestoreRunner
 from trove.backup.models import BackupState
 from trove.guestagent.backup import backupagent
@@ -157,7 +158,7 @@ class MockStats:
 class BackupAgentTest(testtools.TestCase):
     def setUp(self):
         super(BackupAgentTest, self).setUp()
-        when(mysql_impl).get_auth_password().thenReturn('123')
+        when(impl).get_auth_password().thenReturn('123')
         when(backupagent).get_storage_strategy(any(), any()).thenReturn(
             MockSwift)
         when(os).statvfs(any()).thenReturn(MockStats)
@@ -170,8 +171,7 @@ class BackupAgentTest(testtools.TestCase):
         """This test is for
            guestagent/strategies/backup/impl
         """
-        mysql_dump = mysql_impl.MySQLDump(
-            'abc', extra_opts='')
+        mysql_dump = impl.MySQLDump('abc', extra_opts='')
         self.assertIsNotNone(mysql_dump.cmd)
         str_mysql_dump_cmd = ('mysqldump'
                               ' --all-databases'
@@ -191,7 +191,7 @@ class BackupAgentTest(testtools.TestCase):
         """This test is for
            guestagent/strategies/backup/impl
         """
-        inno_backup_ex = mysql_impl.InnoBackupEx('innobackupex', extra_opts='')
+        inno_backup_ex = impl.InnoBackupEx('innobackupex', extra_opts='')
         self.assertIsNotNone(inno_backup_ex.cmd)
         str_innobackup_cmd = ('sudo innobackupex'
                               ' --stream=xbstream'
@@ -204,6 +204,27 @@ class BackupAgentTest(testtools.TestCase):
         self.assertIsNotNone(inno_backup_ex.manifest)
         str_innobackup_manifest = 'innobackupex.xbstream.gz.enc'
         self.assertEqual(inno_backup_ex.manifest, str_innobackup_manifest)
+
+    def test_backup_impl_NodetoolSnapshot(self):
+        operating_system.get_ip_address = Mock(return_value="1.1.1.1")
+        nodetoolsnapshot = impl.NodetoolSnapshot(
+            'nodetoolsnapshot', extra_opts='')
+        self.assertIsNotNone(nodetoolsnapshot)
+        str_nodetoolsnapshot_cmd = (
+            "nodetool snapshot -t all_ks`date +%%F` "
+            ">> /dev/null && sudo tar cpjvfP "
+            "/tmp/all_ks`date +%%F`.tar.bz2 "
+            "$(sudo find /var/lib/cassandra/data/ "
+            "-type d -name all_ks`date +%%F`) "
+            ">> /dev/null && nodetool clearsnapshot "
+            ">> /dev/null && cat /tmp/all_ks`date +%%F`.tar.bz2 &&"
+            " rm /tmp/all_ks`date +%%F`.tar.bz2 |"
+            " openssl enc -aes-256-cbc -salt "
+            "-pass pass:default_aes_cbc_key"
+        )
+        self.assertEqual(str_nodetoolsnapshot_cmd, nodetoolsnapshot.cmd)
+        self.assertIsNotNone(nodetoolsnapshot.manifest)
+        self.assertIn('tar.bz2.enc', nodetoolsnapshot.manifest)
 
     def test_backup_base(self):
         """This test is for
@@ -365,8 +386,8 @@ class BackupAgentTest(testtools.TestCase):
             'parent_location': 'fake',
             'parent_checksum': 'md5',
         }
-        when(mysql_impl.InnoBackupExIncremental).metadata().thenReturn(meta)
-        when(mysql_impl.InnoBackupExIncremental).check_process().thenReturn(
+        when(impl.InnoBackupExIncremental).metadata().thenReturn(meta)
+        when(impl.InnoBackupExIncremental).check_process().thenReturn(
             True)
 
         agent = backupagent.BackupAgent()

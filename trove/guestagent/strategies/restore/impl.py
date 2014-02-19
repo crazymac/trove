@@ -23,7 +23,8 @@ from trove.guestagent.strategies.restore import base
 from trove.openstack.common import log as logging
 from trove.common import exception
 from trove.common import utils
-import trove.guestagent.datastore.mysql.service as dbaas
+import trove.guestagent.datastore.mysql.service as mysql_service
+import trove.guestagent.datastore.cassandra.service as cassandra_service
 from trove.openstack.common.gettextutils import _  # noqa
 
 LOG = logging.getLogger(__name__)
@@ -116,7 +117,7 @@ class InnoBackupEx(base.RestoreRunner, MySQLRestoreMixin):
         self.prep_retcode = None
 
     def pre_restore(self):
-        app = dbaas.MySqlApp(dbaas.MySqlAppStatus.get())
+        app = mysql_service.MySqlApp(mysql_service.MySqlAppStatus.get())
         app.stop_db()
         LOG.info(_("Cleaning out restore location: %s"), self.restore_location)
         utils.execute_with_timeout("chmod", "-R", "0777",
@@ -138,7 +139,7 @@ class InnoBackupEx(base.RestoreRunner, MySQLRestoreMixin):
                                    run_as_root=True)
         self._delete_old_binlogs()
         self.reset_root_password()
-        app = dbaas.MySqlApp(dbaas.MySqlAppStatus.get())
+        app = mysql_service.MySqlApp(mysql_service.MySqlAppStatus.get())
         app.start_mysql()
 
     def _delete_old_binlogs(self):
@@ -233,3 +234,100 @@ class InnoBackupExIncremental(InnoBackupEx):
         """
         self._incremental_restore(self.location, self.checksum)
         return self.content_length
+
+
+class NodetoolSnapshot(base.RestoreRunner):
+    """Implementation of Restore Strategy for NodetoolSnapshot """
+    __strategy_name__ = 'nodetoolsnapshot'
+
+    base_restore_cmd = 'cat > backup.tar.bz2.enc'
+
+    app = cassandra_service.CassandraApp(
+        cassandra_service.CassandraAppStatus())
+
+    def __init__(self, *args, **kwargs):
+        super(NodetoolSnapshot, self).__init__(*args, **kwargs)
+
+    def pre_restore(self):
+        LOG.info("Stoping db for restore")
+        self.app.stop_db()
+
+    def _unpack(self, location, checksum, command):
+        filename = "/tmp/backup.tar.bz2"
+        restore_file = ('%s' % filename +
+                        '.enc' if self.is_encrypted else '')
+        stream = self.storage.load(location, checksum)
+        content_length = 0
+        for chunk in stream:
+            with open(restore_file, 'w+') as rst_file:
+                rst_file.write(chunk)
+            content_length += len(chunk)
+        decr_cmd = ('%(decrypt_cmd)s cat %(restore_file)s '
+                    '| cat > %(filename)s'
+                    % {'decrypt_cmd': self.decrypt_cmd,
+                       'restore_file': restore_file,
+                       'filename': filename})
+        process = base.subprocess.Popen(decr_cmd, shell=True,
+                                        stdin=base.subprocess.PIPE,
+                                        stderr=base.subprocess.PIPE)
+        process.stdin.close()
+        LOG.info(_("Restored %s bytes from stream.") % content_length)
+
+    def post_restore(self):
+        clean_and_move = (
+            'data_dir="/tmp/var/lib/cassandra/data" && '
+            'for keyspace in `sudo ls -1 ${data_dir} | '
+            'grep -xv ""`; do for directories in `sudo ls -1 '
+            '${data_dir}/${keyspace} | grep -xv ""`; do i=`sudo find '
+            '${data_dir}/${keyspace}/${directories}  '
+            '-name *.db`; sudo mv -f $i '
+            '${data_dir}/${keyspace}/${directories}/ '
+            '2>>/dev/null; done ; done;')
+
+        LOG.info('Running restore')
+        try:
+            # Unziping pulled tarball
+            unziping = 'sudo tar xfj /tmp/backup.tar.bz2 -C /tmp 2>/dev/null'
+            out, err = utils.execute_with_timeout(unziping, shell=True)
+            LOG.debug(_("CMD: %(cmd)s Out: %(out)s Error: %(err)s")
+                      % {'out': out, 'err': err, 'cmd': unziping})
+
+            # Removing unneeded tarball
+            cleaning = 'sudo rm -fr /tmp/backup.tar.bz2'
+            out, err = utils.execute_with_timeout(cleaning, shell=True)
+            LOG.debug(_("CMD: %(cmd)s Out: %(out)s Error: %(err)s")
+                      % {'out': out, 'err': err, 'cmd': cleaning})
+
+            # Splitting sst tables to its snapshot directories
+            out, err = utils.execute_with_timeout(
+                clean_and_move, shell=True)
+            LOG.debug(_("CMD: %(cmd)s Out: %(out)s Error: %(err)s")
+                      % {'cmd': clean_and_move, 'out': out, 'err': err})
+
+            # Extracting sst tables and removing empty snapshot directories
+            removing_snapshots_dirs = (
+                'sudo rm -rf $(sudo find /tmp/var -type d -name snapshots)')
+            out, err = utils.execute_with_timeout(
+                removing_snapshots_dirs, shell=True)
+            LOG.debug(_("CMD: %(cmd)s Out: %(out)s Error: %(err)s")
+                      % {'out': out, 'err': err,
+                         'cmd': removing_snapshots_dirs})
+
+            # Moving data to destination directory
+            cp = 'sudo cp -R /tmp/var/lib/cassandra/data/ /var/lib/cassandra/'
+            out, err = utils.execute_with_timeout(cp, shell=True)
+            LOG.debug(_("CMD: %(cmd)s Out: %(out)s Error: %(err)s")
+                      % {'out': out, 'err': err, 'cmd': cp})
+
+            # Removing up temp storage
+            final_cleanup = 'sudo rm -fr /tmp/var'
+            out, err = utils.execute_with_timeout(final_cleanup, shell=True)
+            LOG.debug(_("CMD: %(cmd)s "
+                        "Out: %(out)s Error: %(err)s")
+                      % {'out': out, 'err': err, 'cmd': final_cleanup})
+
+        except exception.ProcessExecutionError:
+            LOG.error("Error while post-restoring")
+            raise
+        LOG.info("Starting db after restore")
+        self.app.restart()

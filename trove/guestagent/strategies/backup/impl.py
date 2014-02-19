@@ -14,9 +14,11 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 #
+import time
 
 import re
 
+from trove.guestagent.common import operating_system
 from trove.guestagent.datastore.mysql.service import ADMIN_USER_NAME
 from trove.guestagent.datastore.mysql.service import get_auth_password
 from trove.guestagent.strategies.backup import base
@@ -117,3 +119,29 @@ class InnoBackupExIncremental(InnoBackupEx):
             'parent_checksum': self.parent_checksum,
         })
         return _meta
+
+
+class NodetoolSnapshot(base.BackupRunner, object):
+    """NodetoolSnapshot backup."""
+    __strategy_name__ = 'nodetoolsnapshot'
+
+    @property
+    def cmd(self):
+        cmd = ("nodetool snapshot -t all_ks`date +%%F` "
+               ">> /dev/null && sudo tar cpjvfP "
+               "/tmp/all_ks`date +%%F`.tar.bz2 "
+               "$(sudo find /var/lib/cassandra/data/ "
+               "-type d -name all_ks`date +%%F`) "
+               ">> /dev/null && nodetool clearsnapshot "
+               ">> /dev/null && cat /tmp/all_ks`date +%%F`.tar.bz2 &&"
+               " rm /tmp/all_ks`date +%%F`.tar.bz2")
+        return cmd + self.encrypt_cmd
+
+    @property
+    def manifest(self):
+        manifest = ("%(ip)s_%(date)s.cassandra.tar.bz2" %
+                    {
+                        'ip': operating_system.get_ip_address(),
+                        'date': time.strftime("%d-%m-%Y-%H-%M-%S"),
+                    })
+        return manifest + self.encrypt_manifest

@@ -399,7 +399,7 @@ class GuestAgentCassandraDBManagerTest(testtools.TestCase):
         when(mock_app).make_host_reachable().thenReturn(None)
         when(mock_app).restart().thenReturn(None)
         when(os.path).exists(any()).thenReturn(True)
-
+        when(backup).restore(self.context, backup_info).thenReturn(None)
         when(volume.VolumeDevice).format().thenReturn(None)
         when(volume.VolumeDevice).migrate_data(any()).thenReturn(None)
         when(volume.VolumeDevice).mount().thenReturn(None)

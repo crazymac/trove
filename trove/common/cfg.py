@@ -160,17 +160,13 @@ common_opts = [
                help='Timeout to wait for a guest to become active.'),
     cfg.StrOpt('region', default='LOCAL_DEV',
                help='The region this service is located.'),
-    cfg.StrOpt('backup_runner',
-               default='trove.guestagent.backup.backup_types.InnoBackupEx'),
     cfg.DictOpt('backup_runner_options', default={},
                 help='Additional options to be passed to the backup runner.'),
-    cfg.StrOpt('backup_strategy', default='InnoBackupEx',
-               help='Default strategy to perform backups.'),
     cfg.StrOpt('backup_namespace',
-               default='trove.guestagent.strategies.backup.mysql_impl',
+               default='trove.guestagent.strategies.backup.impl',
                help='Namespace to load backup strategies from.'),
     cfg.StrOpt('restore_namespace',
-               default='trove.guestagent.strategies.restore.mysql_impl',
+               default='trove.guestagent.strategies.restore.impl',
                help='Namespace to load restore strategies from.'),
     cfg.DictOpt('backup_incremental_strategy',
                 default={'InnoBackupEx': 'InnoBackupExIncremental'},
@@ -262,7 +258,6 @@ common_opts = [
 CONF = cfg.CONF
 CONF.register_opts(path_opts)
 CONF.register_opts(common_opts)
-
 
 # Mysql
 mysql_group = cfg.OptGroup(
