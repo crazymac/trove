@@ -105,7 +105,6 @@ reboot_time_out = 60
 # Trove api-paste file name
 api_paste_config = api-paste.ini
 
-
 # ============ notifer queue kombu connection options ========================
 
 notifier_queue_hostname = localhost
@@ -135,3 +134,16 @@ control_exchange = trove
 #key_file = /path/to/server.key
 #optional:
 #ca_file = /path/to/ca_file
+
+# ============ DBLog files audit =====================
+# Depends on allow_database_logging value in trove-taskmanager.
+# Parameters should have same value
+
+[mysql]
+allow_database_log_files_audit = False
+
+[cassandra]
+allow_database_log_files_audit = False
+
+[redis]
+allow_database_log_files_audit = False

@@ -96,8 +96,12 @@ class MockSwift(object):
         self.etag.update(self.store)
         return self.etag.hexdigest()
 
-    def save(self, filename, stream):
+    def save_backup(self, filename, stream):
         location = '%s/%s/%s' % (self.url, self.container, filename)
+        return True, 'w00t', 'fake-checksum', location
+
+    def save_dblog(self, filename, stream):
+        location = '%s/%s/%s' % (self.url, 'trove_logs', filename)
         return True, 'w00t', 'fake-checksum', location
 
     def load(self, context, storage_url, container, filename, backup_checksum):
@@ -118,7 +122,10 @@ class MockStorage(Storage):
     def load(self, location, backup_checksum):
         pass
 
-    def save(self, filename, stream):
+    def save_backup(self, filename, stream):
+        pass
+
+    def save_dblog(self, filename, stream):
         pass
 
     def load_metadata(self, location, checksum):
@@ -301,8 +308,8 @@ class BackupAgentTest(testtools.TestCase):
     def test_execute_lossy_backup(self):
         """This test verifies that incomplete writes to swift will fail."""
         when(backupagent).get_auth_password().thenReturn('secret')
-        when(MockSwift).save(any(), any()).thenReturn((False, 'Error', 'y',
-                                                       'z'))
+        when(MockSwift).save_backup(any(), any()).thenReturn(
+            (False, 'Error', 'y', 'z'))
         agent = backupagent.BackupAgent()
 
         backup_info = {'id': '123',

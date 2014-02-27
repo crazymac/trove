@@ -99,7 +99,7 @@ class BackupAgent(object):
                         **parent_metadata) as bkup:
                 try:
                     LOG.info(_("Starting Backup %s"), backup_id)
-                    success, note, checksum, location = storage.save(
+                    success, note, checksum, location = storage.save_backup(
                         bkup.manifest,
                         bkup)
 

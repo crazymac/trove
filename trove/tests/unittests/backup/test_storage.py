@@ -55,7 +55,7 @@ class SwiftStorageSaveChecksumTests(testtools.TestCase):
             (success,
              note,
              checksum,
-             location) = storage_strategy.save(runner.manifest, runner)
+             location) = storage_strategy.save_backup(runner.manifest, runner)
 
         self.assertTrue(success, "The backup should have been successful.")
         self.assertIsNotNone(note, "A note should have been returned.")
@@ -84,7 +84,7 @@ class SwiftStorageSaveChecksumTests(testtools.TestCase):
             (success,
              note,
              checksum,
-             location) = storage_strategy.save(runner.manifest, runner)
+             location) = storage_strategy.save_backup(runner.manifest, runner)
 
         self.assertFalse(success, "The backup should have failed!")
         self.assertTrue(note.startswith("Error saving data to Swift!"))
@@ -116,7 +116,7 @@ class SwiftStorageSaveChecksumTests(testtools.TestCase):
             (success,
              note,
              checksum,
-             location) = storage_strategy.save(runner.manifest, runner)
+             location) = storage_strategy.save_backup(runner.manifest, runner)
 
         self.assertFalse(success, "The backup should have failed!")
         self.assertTrue(note.startswith("Error saving data to Swift!"))

@@ -254,6 +254,12 @@ class ApiTest(testtools.TestCase):
         self.api.apply_overrides('123')
         self._verify_rpc_cast(exp_msg)
 
+    def test_save_log(self):
+        exp_msg = RpcMsgMatcher('stream_dblog', 'log_file')
+        self._mock_rpc_call(exp_msg)
+        self.api.save_db_log('context', 'file')
+        self._verify_rpc_call(exp_msg)
+
     def _verify_rpc_connection_and_cast(self, rpc, mock_conn, exp_msg):
         verify(rpc).create_connection(new=True)
         verify(mock_conn).create_consumer(self.api._get_routing_key(), None,

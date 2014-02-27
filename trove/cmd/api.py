@@ -43,3 +43,7 @@ def main():
     launcher = wsgi.launch('trove', CONF.bind_port or 8779, conf_file,
                            workers=CONF.trove_api_workers)
     launcher.wait()
+
+
+if __name__ == "__main__":
+    main()

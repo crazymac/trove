@@ -59,6 +59,12 @@ class FakeGuest(object):
             'threads': 2
         }
 
+    def save_log(self, log_file):
+        return {'dblog': {'instance_id': self.id,
+                'file': log_file,
+                'size': str(12345),
+                'location': "url"}}
+
     def update_guest(self):
         LOG.debug("Updating guest %s" % self.id)
         self.version += 1

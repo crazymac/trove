@@ -23,6 +23,7 @@ from trove.limits.service import LimitsController
 from trove.backup.service import BackupController
 from trove.versions import VersionsController
 from trove.datastore.service import DatastoreController
+from trove.dbinstance_log.service import DBLogController
 
 
 class API(wsgi.Router):
@@ -37,6 +38,7 @@ class API(wsgi.Router):
         self._limits_router(mapper)
         self._backups_router(mapper)
         self._configurations_router(mapper)
+        self._dblog_router(mapper)
 
     def _versions_router(self, mapper):
         versions_resource = VersionsController().create_resource()
@@ -187,6 +189,19 @@ class API(wsgi.Router):
                        controller=configuration_resource,
                        action='delete',
                        conditions={'method': ['DELETE']})
+
+    def _dblog_router(self, mapper):
+        logging_resource = DBLogController().create_resource()
+        common_path = "/{tenant_id}/dblog"
+        mapper.connect("logs", common_path,
+                       controller=logging_resource,
+                       action="create")
+        mapper.connect("/{tenant_id}/dblogs",
+                       controller=logging_resource,
+                       action="index")
+        mapper.connect("/{tenant_id}/dblogs/{id}",
+                       controller=logging_resource,
+                       action="show")
 
 
 def app_factory(global_conf, **local_conf):

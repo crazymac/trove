@@ -30,8 +30,12 @@ from trove.guestagent.datastore.redis.manager import Manager as RedisManager
 import trove.guestagent.datastore.redis.service as redis_service
 import trove.guestagent.datastore.redis.system as redis_system
 from trove.guestagent import backup
+from trove.guestagent import dblog
 from trove.guestagent.volume import VolumeDevice
 from trove.guestagent import pkg
+
+import uuid
+from tempfile import NamedTemporaryFile
 
 
 class GuestAgentManagerTest(testtools.TestCase):
@@ -148,6 +152,19 @@ class GuestAgentManagerTest(testtools.TestCase):
         Manager().create_backup(self.context, 'backup_id_123')
         # assertions
         verify(backup).backup(self.context, 'backup_id_123')
+
+    def test_create_dblog(self):
+        with NamedTemporaryFile(delete=False) as f:
+            path = f.name
+        mapping = {"dblog": {
+            'instance_id': str(uuid.uuid4()),
+            'file': path,
+            'size': 1234,
+            'location': "url"
+        }}
+        when(dblog).save_dbinstance_log(self.context, path).thenReturn(mapping)
+        Manager().stream_dblog(self.context, path)
+        verify(dblog).save_dbinstance_log(self.context, path)
 
     def test_prepare_device_path_true(self):
         self._prepare_dynamic()

@@ -28,8 +28,12 @@ class Storage(Strategy):
         super(Storage, self).__init__()
 
     @abc.abstractmethod
-    def save(self, filename, stream):
-        """Persist information from the stream """
+    def save_backup(self, filename, stream):
+        """Persist information from the backup"""
+
+    @abc.abstractmethod
+    def save_dblog(self, filename, stream):
+        """Persist information from the database log"""
 
     @abc.abstractmethod
     def load(self, location, backup_checksum):

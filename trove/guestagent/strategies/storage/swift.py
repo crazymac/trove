@@ -28,6 +28,7 @@ CONF = cfg.CONF
 CHUNK_SIZE = CONF.backup_chunk_size
 MAX_FILE_SIZE = CONF.backup_segment_max_size
 BACKUP_CONTAINER = CONF.backup_swift_container
+DBLOG_CONTAINER = "trove_logs"
 
 
 class DownloadError(Exception):
@@ -96,7 +97,26 @@ class SwiftStorage(base.Storage):
         super(SwiftStorage, self).__init__(*args, **kwargs)
         self.connection = create_swift_client(self.context)
 
-    def save(self, filename, stream):
+    def save_dblog(self, filename, stream):
+        self.connection.put_container(DBLOG_CONTAINER)
+        stream_reader = StreamReader(stream, filename)
+        url = self.connection.url
+        location = "%s/%s/%s" % (url, DBLOG_CONTAINER, filename)
+        swift_checksum = hashlib.md5()
+        # Read from the stream and write to the container in swift
+
+        while not stream_reader.end_of_file:
+            self.connection.put_object(DBLOG_CONTAINER,
+                                       filename,
+                                       stream_reader)
+            segment_checksum = stream_reader.segment_checksum.hexdigest()
+            swift_checksum.update(segment_checksum)
+
+        final_swift_checksum = swift_checksum.hexdigest()
+        return (True, "Successfully saved data to Swift!",
+                final_swift_checksum, location)
+
+    def save_backup(self, filename, stream):
         """Persist information from the stream to swift.
 
         The file is saved to the location <BACKUP_CONTAINER>/<filename>.

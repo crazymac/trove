@@ -20,6 +20,7 @@ import os
 from trove.common import cfg
 from trove.common import instance as rd_instance
 from trove.guestagent import dbaas
+from trove.guestagent import dblog
 from trove.guestagent import backup
 from trove.guestagent import volume
 from trove.guestagent.datastore.mysql.service import MySqlAppStatus
@@ -198,3 +199,17 @@ class Manager(periodic_task.PeriodicTasks):
     def apply_overrides(self, context, overrides):
         app = MySqlApp(MySqlAppStatus.get())
         app.apply_overrides(overrides)
+
+    def stream_dblog(self, context, log_file):
+        """
+        Entry point for initiating a dblog streaming for this
+        guest agents db instance. The call currently blocks until
+        the streaming is complete or errors.
+
+        :param log_file fully-qualified file path
+
+        """
+        if os.path.exists(log_file):
+            return dblog.save_dbinstance_log(context, log_file)
+        else:
+            raise dblog.PossibleException("Missing log file")

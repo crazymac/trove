@@ -60,3 +60,6 @@ def main():
 
 def mgmt_main():
     startup("mgmt-taskmanager")
+
+if __name__ == "__main__":
+    main()

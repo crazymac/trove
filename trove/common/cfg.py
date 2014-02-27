@@ -270,6 +270,9 @@ mysql_group = cfg.OptGroup(
 mysql_opts = [
     cfg.BoolOpt('allow_database_logging', default=False,
                 help='Allow logging inside mysql instance'),
+    cfg.BoolOpt('allow_database_log_files_audit', default=False,
+                help='Allow log files audit. '
+                     'Depends on allow_database_logging value'),
 ]
 
 # Cassandra
@@ -279,6 +282,9 @@ cassandra_group = cfg.OptGroup(
 cassandra_opts = [
     cfg.BoolOpt('allow_database_logging', default=False,
                 help='Allow logging inside cassandra instance'),
+    cfg.BoolOpt('allow_database_log_files_audit', default=False,
+                help='Allow log files audit. '
+                     'Depends on allow_database_logging value'),
 ]
 
 # Redis
@@ -288,6 +294,9 @@ redis_group = cfg.OptGroup(
 redis_opts = [
     cfg.BoolOpt('allow_database_logging', default=False,
                 help='Allow logging inside redis instance'),
+    cfg.BoolOpt('allow_database_log_files_audit', default=False,
+                help='Allow log files audit. '
+                     'Depends on allow_database_logging value'),
 ]
 
 CONF.register_group(mysql_group)

@@ -55,3 +55,6 @@ def main():
         eventlet.monkey_patch(thread=True)
 
     launch_services()
+
+if __name__ == "__main__":
+    main()

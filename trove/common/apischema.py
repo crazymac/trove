@@ -436,3 +436,22 @@ account = {
         }
     }
 }
+
+dbinstance_log = {
+    'create': {
+        "name": "dblog:create",
+        "type": "object",
+        "required": ["dblog"],
+        "additionalProperties": True,
+        "properties": {
+            "dblog": {
+                "type": "object",
+                "required": ["instance", "file"],
+                "properties": {
+                    "instance": uuid,
+                    "file": non_empty_string
+                }
+            }
+        }
+    }
+}

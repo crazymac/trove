@@ -106,6 +106,12 @@ def load_simple_instance_server_status(context, db_info):
             db_info.addresses = {}
 
 
+def set_task_status(context, instance_id, task_status):
+    db_info = get_db_info(context, instance_id)
+    db_info.task_status = task_status
+    db_info.save()
+
+
 # If the compute server is in any of these states we can't perform any
 # actions (delete, resize, etc).
 SERVER_INVALID_ACTION_STATUSES = ["BUILD", "REBOOT", "REBUILD", "RESIZE"]

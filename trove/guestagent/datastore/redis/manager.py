@@ -12,9 +12,11 @@
 #    WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
 #    License for the specific language governing permissions and limitations
 #    under the License.
+import os
 
 from trove.common import cfg
 from trove.guestagent import dbaas
+from trove.guestagent import dblog
 from trove.guestagent import volume
 from trove.guestagent.datastore.redis.service import RedisAppStatus
 from trove.guestagent.datastore.redis.service import RedisApp
@@ -122,3 +124,17 @@ class Manager(periodic_task.PeriodicTasks):
         it does nothing.
         """
         raise NotImplemented()
+
+    def stream_dblog(self, context, log_file):
+        """
+        Entry point for initiating a dblog streaming for this
+        guest agents db instance. The call currently blocks until
+        the streaming is complete or errors.
+
+        :param log_file fully-qualified file path
+
+        """
+        if os.path.exists(log_file):
+            return dblog.save_dbinstance_log(context, log_file)
+        else:
+            raise dblog.PossibleException("Missing log file")
