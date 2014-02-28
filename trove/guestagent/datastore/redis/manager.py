@@ -204,3 +204,7 @@ class Manager(periodic_task.PeriodicTasks):
     def is_root_enabled(self, context):
         raise exception.DatastoreOperationNotSupported(
             operation='is_root_enabled', datastore=MANAGER)
+
+    def do_recovery(self, context, backup_info):
+        raise exception.DatastoreOperationNotSupported(
+            operation='do_recovery', datastore=MANAGER)

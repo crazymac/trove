@@ -901,7 +901,26 @@ class BuiltInstanceTasks(BuiltInstance, NotifyMixin, ConfigurationMixin):
         self.update_overrides(overrides, remove=True)
         self.update_db(configuration_id=None)
 
-    def refresh_compute_server_info(self):
+    def do_instance_recovery(self, instance_id, backup_id):
+        recovery_in_progress = inst_models.InstanceTasks.RECOVERY_IN_PROGRESS
+        none = inst_models.InstanceTasks.NONE
+        self.update_db(task_status=recovery_in_progress)
+        instance_status = InstanceServiceStatus.find_by(
+            self.context, instance_id=instance_id)
+        instance_status.set_status(ServiceStatuses.BUILDING)
+        instance_status.save()
+        _backup = bkup_models.Backup.get_by_id(self.context, backup_id)
+        backup_info = {
+            'id': backup_id,
+            'location': _backup.location,
+            'type': _backup.backup_type,
+            'checksum': _backup.checksum,
+        }
+        self.guest.do_recovery(backup_info)
+        self.update_db(task_status=none)
+        instance_status.save()
+
+    def _refresh_compute_server_info(self):
         """Refreshes the compute server field."""
         server = self.nova_client.servers.get(self.server.id)
         self.server = server

@@ -867,6 +867,12 @@ class Instance(BuiltInstance):
             self.update_db(task_status=InstanceTasks.RESTART_REQUIRED)
         task_api.API(self.context).update_overrides(self.id, overrides)
 
+    def recover_instance(self, instance_id, backup_id):
+        LOG.info(_("Performing point in time recovery for"
+                   " instance: %s") % instance_id)
+        task_api.API(self.context).do_instance_recovery(
+            instance_id, backup_id)
+
 
 def create_server_list_matcher(server_list):
     # Returns a method which finds a server from the given list.

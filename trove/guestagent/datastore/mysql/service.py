@@ -559,6 +559,15 @@ class MySqlApp(object):
         self.state_change_wait_time = CONF.state_change_wait_time
         self.status = status
 
+    def cleanup_restore_location(self, path):
+        cmd = "sudo rm -fr %s/*" % path
+        try:
+            utils.execute_with_timeout(cmd, shell=True)
+        except exception.ProcessExecutionError as p:
+            LOG.error("Error while cleaning restore location.")
+            LOG.error(p)
+            self.status.set_status(rd_instance.ServiceStatuses.FAILED)
+
     def _create_admin_user(self, client, password):
         """
         Create a os_admin user with a random password

@@ -59,6 +59,26 @@ class InstanceView(object):
                             self.instance.flavor_id)
 
 
+class RecoveryDescriptionInstanceView(InstanceView):
+    """Works when recovering an instance."""
+
+    def __init__(self, instance, backup, req):
+        super(RecoveryDescriptionInstanceView, self).__init__(
+            instance, req=req)
+        self.backup = backup
+
+    def data(self):
+        instance_dict = {
+            "id": self.instance.id,
+            "name": self.instance.name,
+            "status": self.instance.status,
+            "datastore": {"type": self.instance.datastore.name},
+            "recovered_from_backup": self.backup.id,
+            'point_in_time': self.backup.created
+        }
+        return {'recovery': instance_dict}
+
+
 class InstanceDetailView(InstanceView):
     """Works with a full-blown instance."""
 

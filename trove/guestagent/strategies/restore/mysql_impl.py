@@ -81,7 +81,8 @@ class MySQLRestoreMixin(object):
             child.delayafterclose = 1
             child.delayafterterminate = 1
             child.close(force=True)
-            utils.execute_with_timeout("sudo", "killall", "mysqld")
+            cmd = "sudo killall mysqld 2> /dev/null || sudo true"
+            utils.execute_with_timeout(cmd, shell=True)
             self.poll_until_then_raise(
                 self.mysql_is_not_running,
                 base.RestoreError("Reset root password failed: "

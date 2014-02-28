@@ -305,6 +305,12 @@ class ApiTest(testtools.TestCase):
 
         self._verify_rpc_connection_and_cast(rpc, mock_conn, exp_msg)
 
+    def test_recover(self):
+        exp_msg = RpcMsgMatcher('do_recovery', 'backup_info')
+        self._mock_rpc_cast(exp_msg)
+        self.api.do_recovery({'id': '123'})
+        self._verify_rpc_cast(exp_msg)
+
     def test_rpc_cast_with_consumer_exception(self):
         mock_conn = mock()
         when(rpc).create_connection(new=True).thenRaise(IOError('host down'))

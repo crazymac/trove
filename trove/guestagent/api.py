@@ -321,3 +321,10 @@ class API(proxy.RpcProxy):
         LOG.debug(_("Applying overrides on Instance %s"), self.id)
         LOG.debug(_("Applying overrides values %s") % overrides)
         self._cast("apply_overrides", overrides=overrides)
+
+    def do_recovery(self, backup_info):
+        """Make async call to create a full backup of this instance"""
+        LOG.debug(_("Recovering Instance %(instance_id)s "
+                    "from backup %(backup_id)s") %
+                  {'backup_id': backup_info['id'], 'instance_id': self.id})
+        self._cast("do_recovery", backup_info=backup_info)

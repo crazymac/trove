@@ -98,6 +98,10 @@ class Manager(periodic_task.PeriodicTasks):
         instance_tasks = models.BuiltInstanceTasks.load(context, instance_id)
         instance_tasks.unassign_configuration(flavor, configuration_id)
 
+    def do_instance_recovery(self, context, instance_id, backup_id):
+        instance_tasks = models.BuiltInstanceTasks.load(context, instance_id)
+        instance_tasks.do_instance_recovery(instance_id, backup_id)
+
     if CONF.exists_notification_transformer:
         @periodic_task.periodic_task(
             ticks_between_runs=CONF.exists_notification_ticks)

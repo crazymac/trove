@@ -22,9 +22,10 @@ from trove.common import utils
 from trove.common import wsgi
 from trove.extensions.mysql.common import populate_validated_databases
 from trove.extensions.mysql.common import populate_users
-from trove.instance import models, views
+from trove.instance import models
+from trove.instance import views
 from trove.datastore import models as datastore_models
-from trove.backup.models import Backup as backup_model
+from trove.backup import models as backup_model
 from trove.backup import views as backup_views
 from trove.openstack.common import log as logging
 from trove.openstack.common.gettextutils import _
@@ -145,7 +146,7 @@ class InstanceController(wsgi.Controller):
         LOG.info(_("Indexing backups for instance '%s'") %
                  id)
         context = req.environ[wsgi.CONTEXT_KEY]
-        backups, marker = backup_model.list_for_instance(context, id)
+        backups, marker = backup_model.Backup.list_for_instance(context, id)
         view = backup_views.BackupViews(backups)
         paged = pagination.SimplePaginatedDataView(req.url, 'backups', view,
                                                    marker)
@@ -272,3 +273,32 @@ class InstanceController(wsgi.Controller):
         LOG.debug("default config for instance is: %s" % config)
         return wsgi.Result(views.DefaultConfigurationView(
                            config).data(), 200)
+
+    def recovery(self, req, body, tenant_id, id):
+        """
+        Performs instance point in time recovery
+        """
+        LOG.info(_("Recovering instance "
+                   "for tenant id %s") % tenant_id)
+        LOG.info(logging.mask_password(_("req : '%s'\n\n") % req))
+        LOG.info(logging.mask_password(_("body : '%s'\n\n") % body))
+        try:
+            backup_id = body['recovery']['backup']
+        except KeyError as ve:
+            raise exception.BadRequest(message=ve)
+        context = req.environ[wsgi.CONTEXT_KEY]
+        try:
+            instance = models.Instance.load(context, id)
+            LOG.debug(_("Instance: %s") % id)
+            backup = backup_model.DBBackup.find_by(context, id=backup_id)
+        except exception.ModelNotFoundError:
+            msg = _("No such backup or instance.")
+            raise exception.BadRequest(message=msg)
+        if backup.parent_id is not None:
+            msg = _("Point in time recovery allowed only from "
+                    "full backup.")
+            raise exception.BadRequest(message=msg)
+        instance.recover_instance(id, backup_id)
+        view = views.RecoveryDescriptionInstanceView(
+            instance, backup, req)
+        return wsgi.Result(view.data(), 200)
