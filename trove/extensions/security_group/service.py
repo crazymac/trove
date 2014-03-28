@@ -13,18 +13,18 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 #
-
-
+from trove.common import cfg
 from trove.common import exception
 from trove.common import wsgi
-from trove.common import cfg
+from trove.datastore.models import DatastoreVersion
 from trove.extensions.security_group import models
 from trove.extensions.security_group import views
+from trove.instance import models as instance_models
 from trove.openstack.common import log as logging
 from trove.openstack.common.gettextutils import _
 
-CONF = cfg.CONF
 LOG = logging.getLogger(__name__)
+CONF = cfg.CONF
 
 
 class SecurityGroupController(wsgi.Controller):
@@ -49,9 +49,8 @@ class SecurityGroupController(wsgi.Controller):
         """Return a single security group."""
         LOG.debug("Show() called with %s, %s" % (tenant_id, id))
 
-        sec_group = \
-            models.SecurityGroup.get_security_group_by_id_or_instance_id(
-                id, tenant_id)
+        sec_group = (models.SecurityGroup.
+                     get_security_group_by_id_or_instance_id(id, tenant_id))
 
         return wsgi.Result(
             views.SecurityGroupView(sec_group,
@@ -87,28 +86,61 @@ class SecurityGroupRuleController(wsgi.Controller):
         sec_group = models.SecurityGroup.find_by(id=sec_group_id,
                                                  tenant_id=tenant_id,
                                                  deleted=False)
+        instance_id = (models.SecurityGroupInstanceAssociation.
+                       get_instance_id_by_security_group_id(sec_group_id))
+        db_info = instance_models.get_db_info(context, id=instance_id)
+        manager = (DatastoreVersion.load_by_uuid(
+            db_info.datastore_version_id).manager)
+        tcp_ports = CONF.get(manager).tcp_ports
+        udp_ports = CONF.get(manager).udp_ports
 
-        sec_group_rule = models.SecurityGroupRule.create_sec_group_rule(
-            sec_group,
-            CONF.trove_security_group_rule_protocol,
-            CONF.trove_security_group_rule_port,
-            CONF.trove_security_group_rule_port,
-            body['security_group_rule']['cidr'],
-            context)
+        def _gen_ports(portstr):
+            from_port, sep, to_port = portstr.partition('-')
+            if not (to_port and from_port):
+                if not sep:
+                    to_port = from_port
+            try:
+                if int(from_port) > int(to_port):
+                    raise
+            except ValueError:
+                raise
+            return from_port, to_port
 
-        resultView = views.SecurityGroupRulesView(sec_group_rule,
-                                                  req,
-                                                  tenant_id).create()
-        return wsgi.Result(resultView, 201)
+        def _create_rules(sec_group, ports, protocol):
+            rules = []
+            for port_or_range in set(ports):
+                from_, to_ = _gen_ports(port_or_range)
+                try:
+                    rule = models.SecurityGroupRule.create_sec_group_rule(
+                        sec_group, protocol, int(from_), int(to_),
+                        body['security_group_rule']['cidr'], context)
+                    rules.append(rule)
+                except exception.TroveError:
+                    raise
+            return rules
+
+        tcp_rules = _create_rules(sec_group, tcp_ports, 'tcp')
+        udp_rules = _create_rules(sec_group, udp_ports, 'udp')
+
+        all_rules = tcp_rules + udp_rules
+
+        LOG.info(_("TCP rules: %s") % tcp_rules)
+        LOG.info(_("UDP rules: %s") % udp_rules)
+        LOG.info(_("All rules: %s") % all_rules)
+        view = views.SecurityGroupRulesView(
+            all_rules, req, tenant_id).data()
+        LOG.info(_("Output %s ") % view)
+        return wsgi.Result(view, 200)
 
     def _validate_create_body(self, body):
         try:
-            # TODO(slicknik): Add some better validation here around ports,
-            #  protocol, and cidr values.
             body['security_group_rule']
             body['security_group_rule']['group_id']
-            body['security_group_rule']['cidr']
-        except KeyError as e:
+            cidr = body['security_group_rule']['cidr']
+            if not models.is_cidr_valid(cidr):
+                LOG.error(_("Invalid cidr: %s") % cidr)
+                raise Exception
+        except Exception as e:
             LOG.error(_("Create Security Group Rules Required field(s) "
                         "- %s") % e)
             raise exception.SecurityGroupRuleCreationError(
@@ -134,16 +166,6 @@ class SecurityGroupRuleController(wsgi.Controller):
                         "required": True,
                         "maxLength": 255
                     },
-                    "from_port": {
-                        "type": "integer",
-                        "minimum": 0,
-                        "maximum": 65535
-                    },
-                    "to_port": {
-                        "type": "integer",
-                        "minimum": 0,
-                        "maximum": 65535
-                    }
                 }
             }
         }

@@ -823,17 +823,15 @@ class SecurityGroupsRulesTest(object):
 
     @test
     def test_create_security_group_rule(self):
-        if len(self.testSecurityGroup.rules) == 0:
-            self.testSecurityGroupRule = \
-                dbaas.security_group_rules.create(
-                    group_id=self.testSecurityGroup.id,
-                    protocol="tcp",
-                    from_port=3306,
-                    to_port=3306,
-                    cidr="0.0.0.0/0")
-            assert_is_not_none(self.testSecurityGroupRule)
+        self.testSecurityGroupRules = (
+            dbaas.security_group_rules.create(
+                group_id=self.testSecurityGroup.id,
+                cidr="1.2.3.4/16"))
+        assert_not_equal(len(self.testSecurityGroupRules), 0)
+        assert_is_not_none(self.testSecurityGroupRules)
+        for rule in self.testSecurityGroupRules:
             with TypeCheck('SecurityGroupRule',
-                           self.testSecurityGroupRule) as secGrpRule:
+                           rule) as secGrpRule:
                 secGrpRule.has_field('id', basestring)
                 secGrpRule.has_field('security_group_id', basestring)
                 secGrpRule.has_field('protocol', basestring)
@@ -841,14 +839,8 @@ class SecurityGroupsRulesTest(object):
                 secGrpRule.has_field('from_port', int)
                 secGrpRule.has_field('to_port', int)
                 secGrpRule.has_field('created', basestring)
-            assert_equal(self.testSecurityGroupRule.security_group_id,
+            assert_equal(rule.security_group_id,
                          self.testSecurityGroup.id)
-            assert_equal(self.testSecurityGroupRule.protocol, "tcp")
-            assert_equal(int(self.testSecurityGroupRule.from_port), 3306)
-            assert_equal(int(self.testSecurityGroupRule.to_port), 3306)
-            assert_equal(self.testSecurityGroupRule.cidr, "0.0.0.0/0")
-        else:
-            assert_not_equal(len(self.testSecurityGroup.rules), 0)
 
 
 @test(depends_on_classes=[WaitForGuestInstallationToFinish],

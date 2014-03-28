@@ -256,58 +256,58 @@ class FreshInstanceTasksTest(testtools.TestCase):
 
     def test_create_sg_rules_success(self):
         datastore_manager = 'mysql'
-        taskmanager_models.SecurityGroup.create_for_instance = (
+        taskmanager_models.sg_models.SecurityGroup.create_for_instance = (
             Mock(return_value={'id': uuid.uuid4(),
                                'name': uuid.uuid4()}))
         taskmanager_models.CONF.get = Mock(return_value=FakeOptGroup())
-        taskmanager_models.SecurityGroupRule.create_sec_group_rule = Mock()
+        taskmanager_models.sg_models.SecurityGroupRule.create_sec_group_rule = Mock()
         self.freshinstancetasks._create_secgroup(datastore_manager)
-        self.assertEqual(2, taskmanager_models.SecurityGroupRule.
+        self.assertEqual(2, taskmanager_models.sg_models.SecurityGroupRule.
                          create_sec_group_rule.call_count)
 
     def test_create_sg_rules_format_exception_raised(self):
         datastore_manager = 'mysql'
-        taskmanager_models.SecurityGroup.create_for_instance = (
+        taskmanager_models.sg_models.SecurityGroup.create_for_instance = (
             Mock(return_value={'id': uuid.uuid4(),
                                'name': uuid.uuid4()}))
         taskmanager_models.CONF.get = Mock(
             return_value=FakeOptGroup(tcp_ports=['3306', '-3306']))
         self.freshinstancetasks.update_db = Mock()
-        taskmanager_models.SecurityGroupRule.create_sec_group_rule = Mock()
+        taskmanager_models.sg_models.SecurityGroupRule.create_sec_group_rule = Mock()
         self.assertRaises(MalformedSecurityGroupRuleError,
                           self.freshinstancetasks._create_secgroup,
                           datastore_manager)
 
     def test_create_sg_rules_greater_than_exception_raised(self):
         datastore_manager = 'mysql'
-        taskmanager_models.SecurityGroup.create_for_instance = (
+        taskmanager_models.sg_models.SecurityGroup.create_for_instance = (
             Mock(return_value={'id': uuid.uuid4(),
                                'name': uuid.uuid4()}))
         taskmanager_models.CONF.get = Mock(
             return_value=FakeOptGroup(tcp_ports=['3306', '33060-3306']))
         self.freshinstancetasks.update_db = Mock()
-        taskmanager_models.SecurityGroupRule.create_sec_group_rule = Mock()
+        taskmanager_models.sg_models.SecurityGroupRule.create_sec_group_rule = Mock()
         self.assertRaises(MalformedSecurityGroupRuleError,
                           self.freshinstancetasks._create_secgroup,
                           datastore_manager)
 
     def test_create_sg_rules_success_with_duplicated_port_or_range(self):
         datastore_manager = 'mysql'
-        taskmanager_models.SecurityGroup.create_for_instance = (
+        taskmanager_models.sg_models.SecurityGroup.create_for_instance = (
             Mock(return_value={'id': uuid.uuid4(),
                                'name': uuid.uuid4()}))
         taskmanager_models.CONF.get = Mock(
             return_value=FakeOptGroup(
                 tcp_ports=['3306', '3306', '3306-3307', '3306-3307']))
-        taskmanager_models.SecurityGroupRule.create_sec_group_rule = Mock()
+        taskmanager_models.sg_models.SecurityGroupRule.create_sec_group_rule = Mock()
         self.freshinstancetasks.update_db = Mock()
         self.freshinstancetasks._create_secgroup(datastore_manager)
-        self.assertEqual(2, taskmanager_models.SecurityGroupRule.
+        self.assertEqual(2, taskmanager_models.sg_models.SecurityGroupRule.
                          create_sec_group_rule.call_count)
 
     def test_create_sg_rules_exception_with_malformed_ports_or_range(self):
         datastore_manager = 'mysql'
-        taskmanager_models.SecurityGroup.create_for_instance = (
+        taskmanager_models.sg_models.SecurityGroup.create_for_instance = (
             Mock(return_value={'id': uuid.uuid4(), 'name': uuid.uuid4()}))
         taskmanager_models.CONF.get = Mock(
             return_value=FakeOptGroup(tcp_ports=['A', 'B-C']))

@@ -17,6 +17,8 @@
 """
 Model classes for Security Groups and Security Group Rules on instances.
 """
+import re
+
 import trove.common.remote
 from trove.common import cfg
 from trove.common import exception
@@ -29,6 +31,18 @@ from novaclient import exceptions as nova_exceptions
 
 CONF = cfg.CONF
 LOG = logging.getLogger(__name__)
+
+
+cidr_regex = ("^(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)\."
+              "(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)\."
+              "(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)\."
+              "(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)"
+              "(?:$|/(0|16|24|32))$")
+
+
+def is_cidr_valid(cidr):
+    match = re.match(cidr_regex, cidr)
+    return True if match else False
 
 
 def persisted_models():

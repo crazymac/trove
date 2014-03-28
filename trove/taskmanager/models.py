@@ -39,8 +39,7 @@ from trove.common.remote import create_heat_client
 from trove.common.remote import create_cinder_client
 from trove.extensions.mysql import models as mysql_models
 from trove.configuration.models import Configuration
-from trove.extensions.security_group.models import SecurityGroup
-from trove.extensions.security_group.models import SecurityGroupRule
+from trove.extensions.security_group import models as sg_models
 from swiftclient.client import ClientException
 from trove.instance import models as inst_models
 from trove.instance.models import BuiltInstance
@@ -635,8 +634,8 @@ class FreshInstanceTasks(FreshInstance, NotifyMixin, ConfigurationMixin):
                       {'gt': greenthread.getcurrent(), 'id': self.id})
 
     def _create_secgroup(self, datastore_manager):
-        security_group = SecurityGroup.create_for_instance(self.id,
-                                                           self.context)
+        security_group = sg_models.SecurityGroup.create_for_instance(
+            self.id, self.context)
         tcp_ports = CONF.get(datastore_manager).tcp_ports
         udp_ports = CONF.get(datastore_manager).udp_ports
         self._create_rules(security_group, tcp_ports, 'tcp')
@@ -655,6 +654,12 @@ class FreshInstanceTasks(FreshInstance, NotifyMixin, ConfigurationMixin):
             msg = err_msg % {'from': from_port, 'to': to_port}
             raise MalformedSecurityGroupRuleError(message=msg)
 
+        def validate_cidr(cidr):
+            if not sg_models.is_cidr_valid(cidr):
+                self.update_db(task_status=err)
+                msg = _("Invalid CIDR: %s") % cidr
+                raise MalformedSecurityGroupRuleError(message=msg)
+
         def _gen_ports(portstr):
             from_port, sep, to_port = portstr.partition('-')
             if not (to_port and from_port):
@@ -670,11 +675,12 @@ class FreshInstanceTasks(FreshInstance, NotifyMixin, ConfigurationMixin):
         for port_or_range in set(ports):
 
             from_, to_ = _gen_ports(port_or_range)
+            cidr = CONF.trove_security_group_rule_cidr
+            validate_cidr(cidr)
             try:
-                SecurityGroupRule.create_sec_group_rule(
+                sg_models.SecurityGroupRule.create_sec_group_rule(
                     s_group, protocol, int(from_), int(to_),
-                    CONF.trove_security_group_rule_cidr,
-                    self.context)
+                    cidr, self.context)
             except TroveError:
                 set_error_and_raise([from_, to_])
 
