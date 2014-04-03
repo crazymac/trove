@@ -25,7 +25,7 @@ from trove.taskmanager import api
 from trove.common.remote import create_swift_client
 from trove.common import utils
 from trove.quota.quota import run_with_quotas
-
+from trove.openstack.common.gettextutils import _
 CONF = cfg.CONF
 LOG = logging.getLogger(__name__)
 SWIFT_CONTAINER = CONF.backup_swift_container
@@ -193,6 +193,54 @@ class Backup(object):
         query = query.filter_by(instance_id=instance_id,
                                 deleted=False)
         return cls._paginate(context, query)
+
+    @classmethod
+    def find_latest_for_instance(cls, context, instance_id):
+        """
+        Finds latest live Backup associated with given instance
+        :param cls:
+        :param instance_id:
+        :return:lates backup for instance defined by the instance id
+        """
+        latest_backup = None
+        backups, marker = Backup.list_for_instance(context, instance_id)
+
+        if backups:
+            backup_timestamps = [backup.updated
+                                 for backup in backups if backup.is_done]
+            latest_timestamp = utils.find_latest_timestamp(backup_timestamps)
+            latest_backup = DBBackup.find_by(context, updated=latest_timestamp)
+            LOG.info(_("Latest backup id: %s") % latest_backup.id)
+            LOG.info(_("Latest backup timestamp: %s") % latest_backup.updated)
+        return latest_backup
+
+    @classmethod
+    def find_closes_backup_for_instance(cls, context, instance_id, timestamp):
+        """
+        Finds closest backup to the given timestamp for
+        instance provided by the instance id
+        :param cls:
+        :param context:
+        :param instance_id: Trove instance ID
+        :param timestamp: timestamp that needed to find the closest backup to it
+        """
+        next_backup = None
+        if not timestamp:
+            next_backup = Backup.find_latest_for_instance(context, instance_id)
+            LOG.info(_("Next available timestamps: %s") % next_backup.updated)
+            LOG.info(_("Next available backup id: %s") % next_backup.id)
+        else:
+            backups, marker = Backup.list_for_instance(context, instance_id)
+            if backups:
+                backup_timestamps = [backup.updated for backup in backups
+                                     if backup.is_done]
+                LOG.info(_("Backup timestamps: %s") % backup_timestamps)
+                next_timestamp = utils.find_closest_timestamp(
+                    timestamp, backup_timestamps)
+                LOG.info(_("Next available timestamps: %s") % next_timestamp)
+                next_backup = DBBackup.find_by(context, updated=next_timestamp)
+                LOG.info(_("Next available backup id: %s") % next_backup.id)
+        return next_backup
 
     @classmethod
     def fail_for_instance(cls, instance_id):

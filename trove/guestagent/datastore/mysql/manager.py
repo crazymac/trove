@@ -201,3 +201,22 @@ class Manager(periodic_task.PeriodicTasks):
     def apply_overrides(self, context, overrides):
         app = MySqlApp(MySqlAppStatus.get())
         app.apply_overrides(overrides)
+
+    def do_recovery(self, context, backup_info):
+        LOG.info(_("Recovering database "
+                   "from backup %s") % backup_info['id'])
+        mount_point = CONF.get(
+            'mysql' if not MANAGER else MANAGER).mount_point
+        app = MySqlApp(MySqlAppStatus.get())
+        app.cleanup_restore_location(mount_point)
+        try:
+            backup.restore(context, backup_info, mount_point)
+        except Exception as e:
+            LOG.error(e)
+            LOG.error("Error performing recovery from backup %s",
+                      backup_info['id'])
+            app.status.set_status(rd_instance.ServiceStatuses.FAILED)
+            raise
+        LOG.info(_("Recovered successfully"))
+        app.start_mysql()
+        LOG.info(_("Starting instance"))

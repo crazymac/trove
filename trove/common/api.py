@@ -93,6 +93,10 @@ class API(wsgi.Router):
                        controller=instance_resource,
                        action="configuration",
                        conditions={'method': ['GET']})
+        mapper.connect("/{tenant_id}/instances/{id}/restore",
+                       controller=instance_resource,
+                       action="recovery",
+                       conditions={'method': ['POST']})
 
     def _flavor_router(self, mapper):
         flavor_resource = FlavorController().create_resource()

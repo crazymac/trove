@@ -22,9 +22,10 @@ from trove.common import utils
 from trove.common import wsgi
 from trove.extensions.mysql.common import populate_validated_databases
 from trove.extensions.mysql.common import populate_users
-from trove.instance import models, views
+from trove.instance import models
+from trove.instance import views
 from trove.datastore import models as datastore_models
-from trove.backup.models import Backup as backup_model
+from trove.backup import models as backup_model
 from trove.backup import views as backup_views
 from trove.openstack.common import log as logging
 from trove.openstack.common.gettextutils import _
@@ -145,7 +146,7 @@ class InstanceController(wsgi.Controller):
         LOG.info(_("Indexing backups for instance '%s'") %
                  id)
         context = req.environ[wsgi.CONTEXT_KEY]
-        backups, marker = backup_model.list_for_instance(context, id)
+        backups, marker = backup_model.Backup.list_for_instance(context, id)
         view = backup_views.BackupViews(backups)
         paged = pagination.SimplePaginatedDataView(req.url, 'backups', view,
                                                    marker)
@@ -175,11 +176,12 @@ class InstanceController(wsgi.Controller):
         # TODO(cp16net): need to set the return code correctly
         return wsgi.Result(None, 202)
 
-    def create(self, req, body, tenant_id):
-        # TODO(hub-cap): turn this into middleware
-        LOG.info(_("Creating a database instance for tenant '%s'") % tenant_id)
-        LOG.info(logging.mask_password(_("req : '%s'\n\n") % req))
-        LOG.info(logging.mask_password(_("body : '%s'\n\n") % body))
+    @classmethod
+    def _create_instance(cls, req, body, tenant_id):
+        """
+        Common code for the process that requires
+        provisioning of the new instances under the hood
+        """
         context = req.environ[wsgi.CONTEXT_KEY]
         datastore_args = body['instance'].get('datastore', {})
         datastore, datastore_version = (
@@ -189,7 +191,7 @@ class InstanceController(wsgi.Controller):
         flavor_ref = body['instance']['flavorRef']
         flavor_id = utils.get_id_from_href(flavor_ref)
 
-        configuration = self._configuration_parse(context, body)
+        configuration = cls._configuration_parse(context, body)
         databases = populate_validated_databases(
             body['instance'].get('databases', []))
         database_names = [database.get('_name', '') for database in databases]
@@ -227,10 +229,18 @@ class InstanceController(wsgi.Controller):
                                           volume_size, backup_id,
                                           availability_zone, nics,
                                           configuration)
+        return instance
 
+    def create(self, req, body, tenant_id):
+        # TODO(hub-cap): turn this into middleware
+        LOG.info(_("Creating a database instance for tenant '%s'") % tenant_id)
+        LOG.info(logging.mask_password(_("req : '%s'\n\n") % req))
+        LOG.info(logging.mask_password(_("body : '%s'\n\n") % body))
+        instance = InstanceController._create_instance(req, body, tenant_id)
         view = views.InstanceDetailView(instance, req=req)
         return wsgi.Result(view.data(), 200)
 
+    @classmethod
     def _configuration_parse(self, context, body):
         if 'configuration' in body['instance']:
             configuration_ref = body['instance']['configuration']
@@ -272,3 +282,74 @@ class InstanceController(wsgi.Controller):
         LOG.debug("default config for instance is: %s" % config)
         return wsgi.Result(views.DefaultConfigurationView(
                            config).data(), 200)
+
+    def recovery(self, req, body, tenant_id, id):
+        LOG.info(_("Recovering instance "
+                   "for tenant id %s") % tenant_id)
+        timestamp = body['recovery'].get('timestamp')
+        context = req.environ[wsgi.CONTEXT_KEY]
+        try:
+            parent_instance = models.DBInstance.find_by(context, id=id)
+            LOG.debug(_("Parent instance: %s") % id)
+            backup = None
+            if not timestamp:
+                backup = backup_model.Backup.find_latest_for_instance(
+                    context, id)
+            else:
+                backup = (
+                    backup_model.Backup.find_closes_backup_for_instance(
+                        context, id, timestamp))
+
+            if not backup:
+                raise exception.BadRequest(
+                    message="No suitable backups were found")
+
+            LOG.info(_("Backup. ID: %(id)s. Timestamp: %(timestamp)s") % {
+                'id': backup.id,
+                'timestamp': backup.updated
+            })
+        except exception.ModelNotFoundError:
+            msg = _("No such parent instance.")
+            raise exception.BadRequest(message=msg)
+
+        d_version = datastore_models.DatastoreVersion.load_by_uuid(
+            parent_instance.datastore_version_id)
+
+        LOG.info(_("Parent instance name: %s") % parent_instance.name)
+        LOG.info(_("Parent instance flavor ID: %s")
+                 % parent_instance.flavor_id)
+        LOG.info(_("Parent instance volume size: %s")
+                 % parent_instance.volume_size)
+        LOG.info(_("Parent instance restorePoint: %s")
+                 % backup.id)
+        LOG.info(_("Parent instance datastore: %s")
+                 % d_version.datastore_id)
+        LOG.info(_("Parent instance datastore version: %s")
+                 % d_version.id)
+
+        child_instanse_data = {
+            "instance": {
+                "name": parent_instance.name,
+                "flavorRef": parent_instance.flavor_id,
+                "volume": {
+                    "size": parent_instance.volume_size},
+                "restorePoint": {"backupRef": backup.id},
+                "datastore": {
+                    "type": d_version.datastore_id,
+                    "version": d_version.id
+                }
+            }
+        }
+        if parent_instance.configuration_id:
+            child_instanse_data.update(
+                {"configuration":
+                 parent_instance.configuration_id})
+
+        child_instance = InstanceController._create_instance(
+            req, child_instanse_data, tenant_id)
+
+        view = views.ChildInstanceDetailView(
+            parent_instance, child_instance,
+            timestamp, backup, req)
+
+        return wsgi.Result(view.data(), 200)

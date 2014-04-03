@@ -47,11 +47,12 @@ bool_from_string = openstack_utils.bool_from_string
 execute = processutils.execute
 isotime = timeutils.isotime
 
-CONF = cfg.CONF
 ENV = jinja2.Environment(loader=jinja2.ChoiceLoader([
                          jinja2.FileSystemLoader(CONF.template_path),
                          jinja2.PackageLoader("trove", "templates")
                          ]))
+
+DATETIME_FORMAT = "%Y-%m-%dT%H:%M:%S"
 
 
 def create_method_args_string(*args, **kwargs):
@@ -86,6 +87,51 @@ def generate_uuid():
 
 def utcnow():
     return datetime.datetime.utcnow()
+
+
+def load_utc_datetime_timestamp(timestamp):
+    """
+    Loads the timestamp string as datetime object
+    @param timestamp: string representation
+                      of the datetime.utcnow()
+    """
+    return datetime.datetime.strptime(
+        timestamp, DATETIME_FORMAT)
+
+
+def find_latest_timestamp(timestamps):
+    """
+    Finds the latest timestamp among all given timestamps
+    @param timestamps: list of the timestamps
+    """
+    datetime_timestamps = sorted([
+        load_utc_datetime_timestamp(t) for t in timestamps])
+    return str(datetime_timestamps.pop())
+
+
+def find_closest_timestamp(timestamp, timestamps):
+    """
+    Finds the closets timestamp among all given timestamps in
+    :param timestamp: the timestamp to look for
+    :type timestamp: string
+    :param timestamps: the timestamps where to look
+                       for the next greater after the given timestamp
+    :type timestamps: list of datetime
+    :return next greater timestamp after the given
+    :type timestamp: datetime
+    """
+
+    all_datetime_timestamps = sorted(timestamps)
+    given_timestamp = load_utc_datetime_timestamp(timestamp)
+    greater = [g for g in all_datetime_timestamps
+               if g >= given_timestamp]
+
+    # If "greater" list is not empty then we
+    # should pick the last element of the list.
+    # If its empty then we need to pick last element
+    # from the all_datetime_timestamps list
+    return (str(greater.pop(0)) if greater
+            else str(all_datetime_timestamps.pop()))
 
 
 def raise_if_process_errored(process, exception):

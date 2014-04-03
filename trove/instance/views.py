@@ -107,6 +107,34 @@ class InstanceDetailView(InstanceView):
         }
 
 
+class ChildInstanceDetailView(InstanceDetailView):
+
+    def __init__(self, parent_instance, child_instance,
+                 proposed_timestamp, backup, req):
+        super(ChildInstanceDetailView, self).__init__(
+            child_instance, req=req)
+        self.parent_instance = parent_instance
+        self.proposed_timestamp = proposed_timestamp
+        self.closest_backup = backup.id
+        self.actual_timestamp = backup.updated
+
+    def data(self):
+        result = super(ChildInstanceDetailView, self).data()
+
+        result['instance']['parent_instance'] = self.parent_instance.id
+
+        if self.proposed_timestamp:
+            result['instance'][
+                'proposed_timestamp'] = self.proposed_timestamp
+
+        result['instance'][
+            'recovered_from_closest_timestamp'] = self.actual_timestamp
+
+        result['instance']['closest_backup'] = self.closest_backup
+
+        return result
+
+
 class InstancesView(object):
     """Shows a list of SimpleInstance objects."""
 

@@ -579,6 +579,14 @@ class MySqlApp(object):
         t = text(str(uu))
         client.execute(t)
 
+    def cleanup_restore_location(self, path):
+        cmd = "sudo rm -fr %s/*" % path
+        try:
+            utils.execute_with_timeout(cmd, shell=True)
+        except exception.ProcessExecutionError as p:
+            LOG.error(p)
+            self.status.set_status(rd_instance.ServiceStatuses.FAILED)
+
     def install_if_needed(self, packages):
         """Prepare the guest machine with a secure
            mysql server installation.

@@ -141,3 +141,11 @@ class API(proxy.RpcProxy):
                                 instance_id=instance_id,
                                 flavor=self._transform_obj(flavor),
                                 configuration_id=configuration_id))
+
+    def do_instance_recovery(self, instance_id, backup_id):
+        LOG.debug(_("Making async call to do_instance_recovery for "
+                    "instance %s") % instance_id)
+        self.cast(self.context,
+                  self.make_msg("do_instance_recovery",
+                                instance_id=instance_id,
+                                backup_id=backup_id,))

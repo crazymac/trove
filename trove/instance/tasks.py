@@ -75,6 +75,8 @@ class InstanceTasks(object):
     MIGRATING = InstanceTask(0x06, 'MIGRATING', 'Migrating the instance.')
     RESTART_REQUIRED = InstanceTask(0x07, 'RESTART_REQUIRED',
                                     'Instance requires a restart.')
+    RECOVERY_IN_PROGRESS = InstanceTask(
+        0x08, 'RECOVERY_IN_PROGRESS', 'Instance is recovering now.')
 
     BUILDING_ERROR_DNS = InstanceTask(0x50, 'BUILDING', 'Build error: DNS.',
                                       is_error=True)

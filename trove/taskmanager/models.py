@@ -911,6 +911,23 @@ class BuiltInstanceTasks(BuiltInstance, NotifyMixin, ConfigurationMixin):
         datastore_status.status = rd_instance.ServiceStatuses.PAUSED
         datastore_status.save()
 
+    def do_instance_recovery(self, instance_id, backup_id):
+        recovery_in_progress = inst_models.InstanceTasks.RECOVERY_IN_PROGRESS
+        self.update_db(task_status=recovery_in_progress)
+        instance_status = InstanceServiceStatus.find_by(
+            self.context, instance_id=instance_id)
+        instance_status.save()
+        _backup = bkup_models.Backup.get_by_id(self.context, backup_id)
+        backup_info = {
+            'id': backup_id,
+            'location': _backup.location,
+            'type': _backup.backup_type,
+            'checksum': _backup.checksum,
+        }
+        self.guest.do_recovery(backup_info)
+        instance_status.set_status(ServiceStatuses.RECOVERING)
+        self.reset_task_status()
+
 
 class BackupTasks(object):
     @classmethod

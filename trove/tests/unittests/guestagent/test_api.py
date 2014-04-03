@@ -345,6 +345,12 @@ class ApiTest(testtools.TestCase):
         mock_cast.assert_called_with(mock.ANY,
                                      mock.ANY, exp_msg)
 
+    def test_recovery(self):
+        rpc.cast = mock.Mock()
+        exp_msg = RpcMsgMatcher('do_recovery', 'backup_info')
+        self.api.do_recovery({'id': '123'})
+        self._verify_rpc_cast(exp_msg, rpc.cast)
+
 
 class CastWithConsumerTest(testtools.TestCase):
     def setUp(self):
