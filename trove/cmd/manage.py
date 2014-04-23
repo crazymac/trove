@@ -22,12 +22,10 @@ gettext.install('trove', unicode=1)
 
 
 from trove.common import cfg
-from trove.common import exception
 from trove.common import utils
 from trove.db import get_db_api
 from trove.openstack.common import log as logging
-from trove.datastore import models as datastore_models
-
+from trove.openstack.common.gettextutils import _
 
 CONF = cfg.CONF
 
@@ -54,26 +52,6 @@ class Commands(object):
         for arg in args.args:
             kwargs[arg] = getattr(CONF.action, arg)
         exec_method(**kwargs)
-
-    def datastore_update(self, datastore_name, default_version):
-        try:
-            datastore_models.update_datastore(datastore_name,
-                                              default_version)
-            print("Datastore '%s' updated." % datastore_name)
-        except exception.DatastoreVersionNotFound as e:
-            print(e)
-
-    def datastore_version_update(self, datastore, version_name, manager,
-                                 image_id, packages, active):
-        try:
-            datastore_models.update_datastore_version(datastore,
-                                                      version_name,
-                                                      manager,
-                                                      image_id,
-                                                      packages, active)
-            print("Datastore version '%s' updated." % version_name)
-        except exception.DatastoreNotFound as e:
-            print(e)
 
     def db_recreate(self, repo_path):
         """Drops the database and recreates it."""

@@ -456,3 +456,88 @@ upgrade = {
         }
     }
 }
+
+datastore = {
+    'create': {
+        "type": "object",
+        "name": "datastore:create",
+        "required": ["datastore"],
+        "properties": {
+            "datastore": {
+                "type": "object",
+                "required": ["name"],
+                "properties": {
+                    "name": non_empty_string
+                }
+            }
+        }
+    },
+    'update': {
+        "type": "object",
+        "name": "datastore:update",
+        "required": ["datastore"],
+        "properties": {
+            "datastore": {
+                "type": "object",
+                "properties": {
+                    "name": non_empty_string,
+                    "default_version": {
+                        "type": "string",
+                        "minLength": 0,
+                        "maxLength": 255
+                    }
+                }
+            }
+        }
+    }
+}
+
+version = {
+    'create': {
+        "type": "object",
+        "name": "version:create",
+        "required": ["version"],
+        "properties": {
+            "version": {
+                "type": "object",
+                "required": ["name", "manager", "image_id"],
+                "properties": {
+                    "name": non_empty_string,
+                    "manager": non_empty_string,
+                    "image_id": uuid,
+                    "packages": {
+                        "type": "string",
+                        "minLength": 0,
+                        "maxLength": 511
+                    },
+                    "active": {
+                        "type": "boolean"
+                    }
+                }
+            }
+        }
+    },
+    'update': {
+        "type": "object",
+        "name": "version:update",
+        "required": ["version"],
+        "properties": {
+            "version": {
+                "type": "object",
+                "properties": {
+                    "name": non_empty_string,
+                    "manager": non_empty_string,
+                    "image_id": uuid,
+                    "packages": {
+                        "type": "string",
+                        "minLength": 0,
+                        "maxLength": 511
+                    },
+                    "active": {
+                        "type": "boolean"
+                    }
+                }
+            }
+        }
+    }
+}

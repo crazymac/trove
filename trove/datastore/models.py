@@ -18,7 +18,6 @@
 
 from trove.common import cfg
 from trove.common import exception
-from trove.common import utils
 from trove.db import models as dbmodels
 from trove.db import get_db_api
 from trove.openstack.common import log as logging
@@ -485,42 +484,3 @@ def get_datastore_version(type=None, version=None):
         raise exception.DatastoreVersionInactive(version=
                                                  datastore_version.name)
     return (datastore, datastore_version)
-
-
-def update_datastore(name, default_version):
-    db_api.configure_db(CONF)
-    try:
-        datastore = DBDatastore.find_by(name=name)
-    except exception.ModelNotFoundError:
-        # Create a new one
-        datastore = DBDatastore()
-        datastore.id = utils.generate_uuid()
-        datastore.name = name
-
-    if default_version:
-        version = DatastoreVersion.load(datastore, default_version)
-        if not version.active:
-            raise exception.DatastoreVersionInactive(version=version.name)
-        datastore.default_version_id = version.id
-
-    db_api.save(datastore)
-
-
-def update_datastore_version(datastore, name, manager, image_id, packages,
-                             active):
-    db_api.configure_db(CONF)
-    datastore = Datastore.load(datastore)
-    try:
-        version = DBDatastoreVersion.find_by(datastore_id=datastore.id,
-                                             name=name)
-    except exception.ModelNotFoundError:
-        # Create a new one
-        version = DBDatastoreVersion()
-        version.id = utils.generate_uuid()
-        version.name = name
-        version.datastore_id = datastore.id
-    version.manager = manager
-    version.image_id = image_id
-    version.packages = packages
-    version.active = active
-    db_api.save(version)

@@ -43,7 +43,7 @@ class Datastores(object):
         rd_admin = test_config.users.find_user(
             Requirements(is_admin=True, services=["trove"]))
         self.rd_client = create_dbaas_client(rd_user)
-        self.rd_admin = create_dbaas_client(rd_admin)
+        self.rd_client_admin = create_dbaas_client(rd_admin)
 
     @test
     def test_datastore_list_attrs(self):
@@ -98,6 +98,12 @@ class Datastores(object):
         id_list = [datastore.id for datastore in datastores]
         id_no_versions = test_config.dbaas_datastore_id_no_versions
         assert_true(id_no_versions in id_list)
+
+    @test
+    def test_create_datastore_as_regular(self):
+        assert_raises(exceptions.Unauthorized,
+                      self.rd_client.datastores.create,
+                      "datastore")
 
 
 @test(groups=[tests.DBAAS_API, GROUP, tests.PRE_INSTANCES],
@@ -185,4 +191,179 @@ class DatastoreVersions(object):
         except exceptions.BadRequest as e:
             assert_equal(e.message,
                          "Datastore version '%s' cannot be found." %
+                         test_config.dbaas_datastore_version)
+
+    @test
+    def test_datastore_with_no_active_versions_is_hidden(self):
+        datastores = self.rd_client.datastores.list()
+        id_list = [datastore.id for datastore in datastores]
+        id_no_versions = test_config.dbaas_datastore_id_no_versions
+        assert_true(id_no_versions not in id_list)
+
+    @test
+    def test_datastore_with_no_active_versions_is_visible_for_admin(self):
+        datastores = self.rd_admin.datastores.list()
+        id_list = [datastore.id for datastore in datastores]
+        id_no_versions = test_config.dbaas_datastore_id_no_versions
+        assert_true(id_no_versions in id_list)
+
+    @test
+    def test_datastore_create(self):
+        name = "new_ds"
+        datastore = self.rd_client_admin.datastores.create(name)
+        with TypeCheck('Datastore', datastore) as check:
+            check.has_field("id", basestring)
+            check.has_field("name", basestring)
+            check.has_field("links", list)
+        assert_equal(datastore.name, name)
+
+    @test
+    def test_datastore_update(self):
+        name = "new_ds"
+        new_name = "new_ds_renamed"
+        default_version = None
+        datastore = self.rd_client_admin.datastores.update(name, new_name,
+                                                           default_version)
+        with TypeCheck('Datastore', datastore) as check:
+            check.has_field("id", basestring)
+            check.has_field("name", basestring)
+            check.has_field("links", list)
+        assert_equal(datastore.name, new_name)
+
+    @test(depends_on=[test_datastore_update])
+    def test_try_to_update_datastore_as_regular_user(self):
+        name = "new_ds_renamed"
+        new_name = "new_ds_renamed_2"
+        assert_raises(exceptions.Unauthorized,
+                      self.rd_client.datastores.update,
+                      name, new_name)
+
+    @test
+    def test_datastore_version_create(self):
+        datastore = "new_ds_renamed"
+        name = "new_ver"
+        manager = "mysql"
+        image_id = "617ec12e-3849-4469-9e2b-eadf9a076996"
+        packages = "packages list"
+        active = None
+        version = self.rd_client_admin.datastore_versions.create(datastore,
+                                                                 name,
+                                                                 manager,
+                                                                 image_id,
+                                                                 packages,
+                                                                 active)
+        with TypeCheck('DatastoreVersion', version) as check:
+            check.has_field("id", basestring)
+            check.has_field("datastore", basestring)
+            check.has_field("name", basestring)
+            check.has_field("image", basestring)
+            check.has_field("packages", basestring)
+            check.has_field("active", bool)
+            check.has_field("links", list)
+        assert_equal(version.name, name)
+        assert_equal(version.image, image_id)
+        assert_equal(version.packages, packages)
+        assert_equal(version.active, True)
+
+    @test
+    def test_datastore_version_update(self):
+        datastore = "new_ds_renamed"
+        name = "new_ver"
+        new_name = "new_ver2"
+        image_id = "617ec12e-3849-4469-9e2b-eadf9a076996"
+        packages = "packages list"
+        active = False
+        version = self.rd_client_admin.datastore_versions.update(name,
+                                                                 datastore,
+                                                                 new_name,
+                                                                 None, None,
+                                                                 None, active)
+        with TypeCheck('DatastoreVersion', version) as check:
+            check.has_field("id", basestring)
+            check.has_field("datastore", basestring)
+            check.has_field("name", basestring)
+            check.has_field("image", basestring)
+            check.has_field("packages", basestring)
+            check.has_field("active", bool)
+            check.has_field("links", list)
+        assert_equal(version.name, new_name)
+        assert_equal(version.image, image_id)
+        assert_equal(version.packages, packages)
+        assert_equal(version.active, active)
+
+    @test
+    def test_datastore_version_update_by_uuid(self):
+        datastore = "new_ds_renamed"
+        name = "new_ver2"
+        new_name = "new_ver3"
+        image_id = "617ec12e-3849-4469-9e2b-eadf9a076996"
+        packages = "packages list"
+        active = True
+        version = self.rd_client_admin.datastore_versions.get(datastore, name)
+        version = self.rd_client_admin.datastore_versions.update(version.id,
+                                                                 None,
+                                                                 new_name,
+                                                                 None, None,
+                                                                 None, active)
+        with TypeCheck('DatastoreVersion', version) as check:
+            check.has_field("id", basestring)
+            check.has_field("datastore", basestring)
+            check.has_field("name", basestring)
+            check.has_field("image", basestring)
+            check.has_field("packages", basestring)
+            check.has_field("active", bool)
+            check.has_field("links", list)
+        assert_equal(version.name, new_name)
+        assert_equal(version.image, image_id)
+        assert_equal(version.packages, packages)
+        assert_equal(version.active, active)
+
+    @test
+    def test_datastore_update_not_found(self):
+        name = "not-found"
+        try:
+            assert_raises(exceptions.NotFound,
+                          self.rd_client_admin.datastores.update,
+                          name, None, "")
+        except exceptions.BadRequest as e:
+            assert_equal(e.message,
+                         "Datastore '%s' cannot be found." % name)
+
+    @test
+    def test_datastore_create_already_exists(self):
+        try:
+            assert_raises(exceptions.NotFound,
+                          self.rd_client_admin.datastores.create,
+                          test_config.dbaas_datastore)
+        except exceptions.BadRequest as e:
+            assert_equal(e.message,
+                         "Datastore with name '%s' already exists." %
+                         test_config.dbaas_datastore)
+
+    @test
+    def test_datastore_version_update_not_found(self):
+        datastore = "new_ds_renamed"
+        name = "not-found"
+        active = True
+        try:
+            assert_raises(exceptions.NotFound,
+                          self.rd_client_admin.datastore_versions.update,
+                          name, datastore, None, None, None, None, active)
+        except exceptions.BadRequest as e:
+            assert_equal(e.message,
+                         "Datastore version '%s' cannot be found." % name)
+
+    @test
+    def test_datastore_version_create_already_exists(self):
+        manager = "mysql"
+        image_id = "617ec12e-3849-4469-9e2b-eadf9a076996"
+        try:
+            assert_raises(exceptions.NotFound,
+                          self.rd_client_admin.datastore_versions.create,
+                          test_config.dbaas_datastore,
+                          test_config.dbaas_datastore_version, manager,
+                          image_id, None, None)
+        except exceptions.BadRequest as e:
+            assert_equal(e.message,
+                         "Datastore version with name '%s' already exists." %
                          test_config.dbaas_datastore_version)

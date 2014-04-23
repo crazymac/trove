@@ -16,6 +16,7 @@
 from trove.openstack.common import log as logging
 
 from trove.common import extensions
+from trove.extensions.mgmt.datastores import service as datastore_service
 from trove.extensions.mgmt.instances.service import MgmtInstanceController
 from trove.extensions.mgmt.host.service import HostController
 from trove.extensions.mgmt.quota.service import QuotaController
@@ -85,5 +86,23 @@ class Mgmt(extensions.ExtensionsDescriptor):
             UpgradeController(),
             member_actions={})
         resources.append(upgrade)
+
+        datastores = extensions.ResourceExtension(
+            '{tenant_id}/mgmt/datastores',
+            datastore_service.MgmtDatastoreController(),
+            member_actions={})
+        resources.append(datastores)
+
+        datastore_versions = extensions.ResourceExtension(
+            '{tenant_id}/mgmt/datastores/:(datastore_id)/versions',
+            datastore_service.MgmtDatastoreVersionController(),
+            member_actions={})
+        resources.append(datastore_versions)
+
+        datastore_versions_spike = extensions.ResourceExtension(
+            '{tenant_id}/mgmt/datastores/versions',
+            datastore_service.MgmtDatastoreVersionController(),
+            member_actions={})
+        resources.append(datastore_versions_spike)
 
         return resources

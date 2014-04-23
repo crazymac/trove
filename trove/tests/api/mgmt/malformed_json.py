@@ -308,3 +308,120 @@ class MalformedJson(object):
                                  "Validation error: "
                                  "instance['volume'] %s is not of "
                                  "type 'object'" % volsize)
+
+    @test
+    def test_bad_body_datastore_create(self):
+
+        name = "*"
+        try:
+            self.dbaas.datastores.create(name)
+        except Exception as e:
+            resp, body = self.dbaas.client.last_response
+            httpCode = resp.status
+            asserts.assert_equal(httpCode, 400,
+                                 "Create instance failed with code %s, "
+                                 "exception %s" % (httpCode, e))
+
+            asserts.assert_equal(e.message,
+                                 "Validation error: datastore['name'] "
+                                 "u'%s' does not match "
+                                 "'^.*[0-9a-zA-Z]+.*$'" % name)
+
+    @test
+    def test_bad_body_datastore_update(self):
+
+        name = "*"
+        default_version = "ver1"
+        try:
+            self.dbaas.datastores.update(CONFIG.dbaas_datastore, name,
+                                         default_version)
+        except Exception as e:
+            resp, body = self.dbaas.client.last_response
+            httpCode = resp.status
+            asserts.assert_equal(httpCode, 400,
+                                 "Create instance failed with code %s, "
+                                 "exception %s" % (httpCode, e))
+
+            asserts.assert_equal(e.message,
+                                 "Validation error: datastore['name'] "
+                                 "u'%s' does not match "
+                                 "'^.*[0-9a-zA-Z]+.*$'" % name)
+
+    @test
+    def test_bad_body_datastore_version_create(self):
+
+        name = "*"
+        manager = "*"
+        image_id = "bad"
+        packages = "packages list"
+        active = False
+        try:
+            self.dbaas.datastore_versions.create(CONFIG.dbaas_datastore, name,
+                                                 manager, image_id, packages,
+                                                 active)
+        except Exception as e:
+            resp, body = self.dbaas.client.last_response
+            httpCode = resp.status
+            asserts.assert_equal(httpCode, 400,
+                                 "Create instance failed with code %s, "
+                                 "exception %s" % (httpCode, e))
+
+            asserts.assert_equal(e.message,
+                                 "Validation error: version['image_id'] "
+                                 "u'%s' does not match '^([0-9a-fA-F]){8"
+                                 "}-([0-9a-fA-F]){4}-([0-9a-fA-F]){4}-(["
+                                 "0-9a-fA-F]){4}-([0-9a-fA-F]){12}$'; "
+                                 "version['manager'] u'%s' does not match"
+                                 " '^.*[0-9a-zA-Z]+.*$'; version['name'] "
+                                 "u'%s' does not match '^.*[0-9a-zA-Z]+.*"
+                                 "$'" % (image_id, manager, name))
+
+    @test
+    def test_bad_body_datastore_version_update(self):
+
+        name = "ver1"
+        manager = "mysql"
+        image_id = "bad"
+        packages = "packages list"
+        active = False
+        try:
+            self.dbaas.datastore_versions.update(
+                CONFIG.dbaas_datastore_version, CONFIG.dbaas_datastore, name,
+                manager, image_id, packages, active)
+        except Exception as e:
+            resp, body = self.dbaas.client.last_response
+            httpCode = resp.status
+            asserts.assert_equal(httpCode, 400,
+                                 "Create instance failed with code %s, "
+                                 "exception %s" % (httpCode, e))
+
+            asserts.assert_equal(e.message,
+                                 "Validation error: version['image_id'] "
+                                 "u'%s' does not match '^([0-9a-fA-F]){8"
+                                 "}-([0-9a-fA-F]){4}-([0-9a-fA-F]){4}-(["
+                                 "0-9a-fA-F]){4}-([0-9a-fA-F]){12}$'" %
+                                 image_id)
+
+    @test
+    def test_bad_body_datastore_version_update_by_uuid(self):
+
+        name = "ver1"
+        manager = "*"
+        image_id = None
+        packages = None
+        active = None
+        try:
+            self.dbaas.datastore_versions.update(
+                CONFIG.dbaas_datastore_version_id, None, name, manager,
+                image_id, packages, active)
+        except Exception as e:
+            resp, body = self.dbaas.client.last_response
+            httpCode = resp.status
+            asserts.assert_equal(httpCode, 400,
+                                 "Create instance failed with code %s, "
+                                 "exception %s" % (httpCode, e))
+
+            asserts.assert_equal(e.message,
+                                 "Validation error: version['manager'] "
+                                 "u'%s' does not match '^.*[0-9a-zA-Z]+"
+                                 ".*$'" % manager)

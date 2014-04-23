@@ -149,6 +149,17 @@ class DatastoreOperationNotSupported(TroveError):
                 "the '%(datastore)s' datastore.")
 
 
+class DatastoreAlreadyExists(TroveError):
+
+    message = _("Datastore with name '%(datastore)s' already exists.")
+
+
+class DatastoreVersionAlreadyExists(TroveError):
+
+    message = _("Datastore version with name '%(version)s' "
+                "for Datastore %s(datastore)already exists.")
+
+
 class NoUniqueMatch(TroveError):
 
     message = _("Multiple matches found for '%(name)s', "
