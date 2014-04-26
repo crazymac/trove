@@ -401,3 +401,8 @@ class ConfigurationDatastoreNotMatchInstance(TroveError):
 class ConfigurationParameterDeleted(object):
     message = _("%(parameter_name)s parameter can no longer be "
                 " set as of %(parameter_deleted_at)s")
+
+
+class OperationIsNotSuppotedByTaskmanager(DatastoreOperationNotSupported):
+    message = _("Current Taskmanager service manager "
+                "can't handle %(operation)s operation")

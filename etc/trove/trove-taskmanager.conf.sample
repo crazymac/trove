@@ -77,7 +77,14 @@ nova_proxy_admin_pass = 3de4922d8b6ac5a1aad9
 nova_proxy_admin_tenant_name = admin
 
 # Manager impl for the taskmanager
-taskmanager_manager=trove.taskmanager.manager.Manager
+# Available options:
+# trove.taskmanager.native.Native - uses nova, cinder clients;
+# trove.taskmanager.orchestrator.Orchestrator - uses heat client.
+# trove.taskmanager.migration.Migration - made for backward compatibility
+# with previous deployments, engine is being loaded by the rule
+# based upon provisioning engine defined by base instance model
+
+taskmanager_manager=trove.taskmanager.native.Native
 
 # Manager sends Exists Notifications
 exists_notification_transformer = trove.extensions.mgmt.instances.models.NovaNotificationTransformer

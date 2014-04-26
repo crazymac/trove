@@ -61,8 +61,8 @@ def initialize_trove(config_file):
     logging.setup(None)
     topic = CONF.taskmanager_queue
 
-    from trove.taskmanager import manager
-    manager_impl = manager.Manager()
+    from trove.taskmanager.native import Native as native_manager
+    manager_impl = native_manager()
     taskman_service = rpc_service.Service(None, topic=topic,
                                           manager=manager_impl)
     taskman_service.start()

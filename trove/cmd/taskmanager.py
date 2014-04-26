@@ -30,7 +30,11 @@ from trove.common import debug_utils
 eventlet.monkey_patch(all=True, thread=False)
 
 CONF = cfg.CONF
-CONF.register_opts([openstack_cfg.StrOpt('taskmanager_manager')])
+CONF.register_opts([openstack_cfg.StrOpt(
+    'taskmanager_manager', default='trove.taskmanager.native.Native',
+    help="Defines type of resource management layer. Available options:"
+         "trove.taskmanager.native.Native - uses nova, cinder clients;"
+         "trove.taskmanager.native.Orchestrator - uses heat client.")])
 
 
 def startup(topic):

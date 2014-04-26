@@ -516,7 +516,7 @@ class BaseInstance(SimpleInstance):
     def _delete_resources(self, deleted_at):
         pass
 
-    def delete_async(self):
+    def _delete_async(self):
         deleted_at = datetime.utcnow()
         self._delete_resources(deleted_at)
         LOG.debug("Setting instance %s to deleted..." % self.id)
@@ -529,6 +529,9 @@ class BaseInstance(SimpleInstance):
         self.update_db(deleted=True, deleted_at=deleted_at,
                        task_status=InstanceTasks.NONE)
         self.set_servicestatus_deleted()
+
+    def delete_async(self):
+        self._delete_async()
         # Delete associated security group
         if CONF.trove_security_groups_support:
             SecurityGroup.delete_for_instance(self.db_info.id,
@@ -958,7 +961,8 @@ class DBInstance(dbmodels.DatabaseModelBase):
     _data_fields = ['name', 'created', 'compute_instance_id',
                     'task_id', 'task_description', 'task_start_time',
                     'volume_id', 'deleted', 'tenant_id',
-                    'datastore_version_id', 'configuration_id']
+                    'datastore_version_id',
+                    'configuration_id', 'provisioning_engine']
 
     def __init__(self, task_status, **kwargs):
         """
