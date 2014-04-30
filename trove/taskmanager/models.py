@@ -417,6 +417,9 @@ class FreshInstanceTasks(FreshInstance, NotifyMixin, ConfigurationMixin):
                     not in HEAT_STACK_SUCCESSFUL_STATUSES):
                 raise TroveError("Heat Stack Create Failed.")
 
+            self.update_db(stack_id=stack.id)
+            LOG.debug(_('Stack ID: %s') % stack.id)
+
             resource = client.resources.get(stack.id, 'BaseInstance')
             if resource.resource_status != HEAT_RESOURCE_SUCCESSFUL_STATE:
                 raise TroveError("Heat Resource Provisioning Failed.")
