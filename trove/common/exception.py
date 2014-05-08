@@ -411,3 +411,8 @@ class ConfigurationAlreadyAttached(TroveError):
 class InvalidInstanceState(TroveError):
     message = _("The operation you have requested cannot be executed because "
                 "the instance status is currently: %(status)s")
+
+
+class OperationIsNotSuppotedByTaskmanager(DatastoreOperationNotSupported):
+    message = _("Current Taskmanager service manager "
+                "can't handle %(operation)s operation")

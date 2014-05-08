@@ -1,5 +1,5 @@
-# Copyright 2011 OpenStack Foundation
-# All Rights Reserved.
+#    Copyright 2014 Mirantis Inc.
+#    All Rights Reserved.
 #
 #    Licensed under the Apache License, Version 2.0 (the "License"); you may
 #    not use this file except in compliance with the License. You may obtain
@@ -12,26 +12,28 @@
 #    WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
 #    License for the specific language governing permissions and limitations
 #    under the License.
+
 from trove.common.context import TroveContext
 
 import trove.extensions.mgmt.instances.models as mgmtmodels
-import trove.common.cfg as cfg
 from trove.common import exception
+from trove.common import cfg
+
+from trove.taskmanager import common
+from trove.taskmanager import models
 from trove.openstack.common import log as logging
 from trove.openstack.common import importutils
 from trove.openstack.common import periodic_task
-from trove.taskmanager import models
-from trove.taskmanager.models import FreshInstanceTasks
 
 LOG = logging.getLogger(__name__)
 RPC_API_VERSION = "1.0"
 CONF = cfg.CONF
 
 
-class Manager(periodic_task.PeriodicTasks):
+class BaseManager(periodic_task.PeriodicTasks):
 
     def __init__(self):
-        super(Manager, self).__init__()
+        super(BaseManager, self).__init__()
         self.admin_context = TroveContext(
             user=CONF.nova_proxy_admin_user,
             auth_token=CONF.nova_proxy_admin_pass,
@@ -42,60 +44,56 @@ class Manager(periodic_task.PeriodicTasks):
                 context=self.admin_context)
 
     def resize_volume(self, context, instance_id, new_size):
-        instance_tasks = models.BuiltInstanceTasks.load(context, instance_id)
-        instance_tasks.resize_volume(new_size)
+        raise exception.OperationIsNotSuppotedByTaskmanager(
+            operation="resize_volume")
 
     def resize_flavor(self, context, instance_id, old_flavor, new_flavor):
-        instance_tasks = models.BuiltInstanceTasks.load(context, instance_id)
-        instance_tasks.resize_flavor(old_flavor, new_flavor)
-
-    def reboot(self, context, instance_id):
-        instance_tasks = models.BuiltInstanceTasks.load(context, instance_id)
-        instance_tasks.reboot()
-
-    def restart(self, context, instance_id):
-        instance_tasks = models.BuiltInstanceTasks.load(context, instance_id)
-        instance_tasks.restart()
+        raise exception.OperationIsNotSuppotedByTaskmanager(
+            operation="resize_flavor")
 
     def migrate(self, context, instance_id, host):
-        instance_tasks = models.BuiltInstanceTasks.load(context, instance_id)
+        instance_tasks = common.BuiltInstanceTasksMixin.load(
+            context, instance_id)
         instance_tasks.migrate(host)
-
-    def delete_instance(self, context, instance_id):
-        try:
-            instance_tasks = models.BuiltInstanceTasks.load(context,
-                                                            instance_id)
-            instance_tasks.delete_async()
-        except exception.UnprocessableEntity:
-            instance_tasks = models.FreshInstanceTasks.load(context,
-                                                            instance_id)
-            instance_tasks.delete_async()
-
-    def delete_backup(self, context, backup_id):
-        models.BackupTasks.delete_backup(context, backup_id)
-
-    def create_backup(self, context, backup_info, instance_id):
-        instance_tasks = models.BuiltInstanceTasks.load(context, instance_id)
-        instance_tasks.create_backup(backup_info)
 
     def create_instance(self, context, instance_id, name, flavor,
                         image_id, databases, users, datastore_manager,
                         packages, volume_size, backup_id, availability_zone,
                         root_password, nics, overrides):
-        instance_tasks = FreshInstanceTasks.load(context, instance_id)
-        instance_tasks.create_instance(flavor, image_id, databases, users,
-                                       datastore_manager, packages,
-                                       volume_size, backup_id,
-                                       availability_zone, root_password, nics,
-                                       overrides)
+        raise exception.OperationIsNotSuppotedByTaskmanager(
+            operation="create_instance")
+
+    def delete_instance(self, context, instance_id):
+        raise exception.OperationIsNotSuppotedByTaskmanager(
+            operation="delete_instance")
+
+    def reboot(self, context, instance_id):
+        instance_tasks = common.BuiltInstanceTasksMixin.load(
+            context, instance_id)
+        instance_tasks.reboot()
+
+    def restart(self, context, instance_id):
+        instance_tasks = common.BuiltInstanceTasksMixin.load(
+            context, instance_id)
+        instance_tasks.restart()
+
+    def delete_backup(self, context, backup_id):
+        models.BackupTasks.delete_backup(context, backup_id)
+
+    def create_backup(self, context, backup_info, instance_id):
+        instance_tasks = common.BuiltInstanceTasksMixin.load(
+            context, instance_id)
+        instance_tasks.create_backup(backup_info)
 
     def update_overrides(self, context, instance_id, overrides):
-        instance_tasks = models.BuiltInstanceTasks.load(context, instance_id)
+        instance_tasks = common.BuiltInstanceTasksMixin.load(
+            context, instance_id)
         instance_tasks.update_overrides(overrides)
 
     def unassign_configuration(self, context, instance_id, flavor,
                                configuration_id):
-        instance_tasks = models.BuiltInstanceTasks.load(context, instance_id)
+        instance_tasks = common.BuiltInstanceTasksMixin.load(
+            context, instance_id)
         instance_tasks.unassign_configuration(flavor, configuration_id)
 
     if CONF.exists_notification_transformer:
