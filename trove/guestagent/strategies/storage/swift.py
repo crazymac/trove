@@ -96,6 +96,39 @@ class SwiftStorage(base.Storage):
         super(SwiftStorage, self).__init__(*args, **kwargs)
         self.connection = create_swift_client(self.context)
 
+    def _validate(self, **kwargs):
+        if kwargs:
+            etag = kwargs.get('etag')
+            segment_checksum = kwargs.get('segment_checksum')
+            if etag != segment_checksum:
+                LOG.error("Error saving data segment to swift. "
+                          "ETAG: %s Segment MD5: %s",
+                          etag, segment_checksum)
+                return False, "Error saving data to Swift!", None
+
+    def _save_stream(self, filename, stream, container, location,
+                     validator_method=None):
+
+        self.connection.put_container(container)
+        stream_reader = StreamReader(stream, filename)
+        swift_checksum = hashlib.md5()
+
+        while not stream_reader.end_of_file:
+            etag = self.connection.put_object(
+                container, filename, stream_reader)
+            segment_checksum = stream_reader.segment_checksum.hexdigest()
+            if validator_method:
+                validation = validator_method(
+                    etag=etag, segment_checksum=segment_checksum)
+                if validation:
+                    validation = list(validation)
+                    validation.append(location)
+                    return validation
+            swift_checksum.update(segment_checksum)
+
+        return (True, "Successfully saved data to Swift!",
+                swift_checksum, location)
+
     def save(self, filename, stream):
         """Persist information from the stream to swift.
 
@@ -103,38 +136,17 @@ class SwiftStorage(base.Storage):
         The filename is defined on the backup runner manifest property
         which is typically in the format '<backup_id>.<ext>.gz'
         """
-
-        # Create the container if it doesn't already exist
-        self.connection.put_container(BACKUP_CONTAINER)
-
-        # Swift Checksum is the checksum of the concatenated segment checksums
-        swift_checksum = hashlib.md5()
-
-        # Wrap the output of the backup process to segment it for swift
         stream_reader = StreamReader(stream, filename)
-
         url = self.connection.url
         # Full location where the backup manifest is stored
         location = "%s/%s/%s" % (url, BACKUP_CONTAINER, filename)
 
         # Read from the stream and write to the container in swift
-        while not stream_reader.end_of_file:
-            etag = self.connection.put_object(BACKUP_CONTAINER,
-                                              stream_reader.segment,
-                                              stream_reader)
-
-            segment_checksum = stream_reader.segment_checksum.hexdigest()
-
-            # Check each segment MD5 hash against swift etag
-            # Raise an error and mark backup as failed
-            if etag != segment_checksum:
-                LOG.error("Error saving data segment to swift. "
-                          "ETAG: %s Segment MD5: %s",
-                          etag, segment_checksum)
-                return False, "Error saving data to Swift!", None, location
-
-            swift_checksum.update(segment_checksum)
-
+        status, msg_status, swift_checksum, location = (self._save_stream(
+            filename, stream, BACKUP_CONTAINER,
+            location, validator_method=self._validate))
+        if not status:
+            return status, msg_status, swift_checksum, location
         # Create the manifest file
         # We create the manifest file after all the segments have been uploaded
         # so a partial swift object file can't be downloaded; if the manifest
@@ -157,14 +169,19 @@ class SwiftStorage(base.Storage):
         # swift manifest etag.
         # Raise an error and mark backup as failed
         final_swift_checksum = swift_checksum.hexdigest()
-        if etag != final_swift_checksum:
-            LOG.error(
-                "Error saving data to swift. Manifest ETAG: %s Swift MD5: %s",
-                etag, final_swift_checksum)
-            return False, "Error saving data to Swift!", None, location
+        #validationt_status, valdation_msg, validation_checksum
+        validation = (
+            self._validate(etag=etag,
+                           segment_checksum=final_swift_checksum)
+        )
 
-        return (True, "Successfully saved data to Swift!",
-                final_swift_checksum, location)
+        if validation:
+            validation = list(validation)
+            validation.append(location)
+            return validation
+        else:
+            return (True, "Successfully saved data to Swift!",
+                    final_swift_checksum, location)
 
     def _explodeLocation(self, location):
         storage_url = "/".join(location.split('/')[:-2])
