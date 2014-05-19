@@ -38,6 +38,7 @@ from trove.tests.util.check import CollectionCheck
 from trove.tests.util.check import TypeCheck
 from trove.tests.util.mysql import create_mysql_connection
 from trove.tests.util.users import Requirements
+from trove.tests.util.server_connection import ServerSSHConnection
 from troveclient.compat import exceptions
 
 
@@ -225,7 +226,10 @@ class CreateConfigurations(object):
     def test_appending_to_existing_configuration(self):
         # test being able to update and insert new parameter name and values
         # to an existing configuration
-        values = '{"join_buffer_size": 1048576, "connect_timeout": 60}'
+        values = ('{"join_buffer_size": 1048576, "connect_timeout": 60,'
+                  '"general_log_file": "/var/log/mysql/general.log",'
+                  '"general_log":1, "long_query_time":11, '
+                  '"bin_log": "/var/log/mysql/bin.log"}')
         instance_info.dbaas.configurations.edit(configuration_info.id,
                                                 values)
         resp, body = instance_info.dbaas.client.last_response
@@ -492,6 +496,14 @@ class WaitForConfigurationInstanceToFinish(object):
         assert_not_equal(None, inst.configuration['id'])
         _test_configuration_is_applied_to_instance(configuration_instance,
                                                    configuration_id)
+
+    @test(enabled=not CONFIG.fake_mode,
+          runs_after=[test_get_configuration_details_from_instance_validation])
+    def test_datastore_logs_are_present(self):
+        ssh_cmd = "ls -la /var/log/mysql/ | grep log"
+        ssh_server = ServerSSHConnection(configuration_instance.id)
+        result = ssh_server.execute(ssh_cmd)
+        assert_true(result is not None)
 
 
 @test(runs_after=[WaitForConfigurationInstanceToFinish], groups=[GROUP])

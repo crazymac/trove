@@ -1,6 +1,40 @@
 {
     "configuration-parameters": [
         {
+            "name": "general_log_file",
+            "restart_required": true,
+            "type": "string"
+        },
+        {
+            "name": "general_log",
+            "restart_required": true,
+            "max": 1,
+            "min": 0,
+            "type": "integer"
+        },
+        {
+            "name": "log_slow_queries",
+            "restart_required": true,
+            "type": "string"
+        },
+        {
+            "name": "long_query_time",
+            "restart_required": true,
+            "max": 65535,
+            "min": 10,
+            "type": "integer"
+        },
+        {
+            "name": "log_error",
+            "restart_required": true,
+            "type": "string"
+        },
+        {
+            "name": "bin_log",
+            "restart_required": true,
+            "type": "string"
+        },
+        {
             "name": "innodb_file_per_table",
             "restart_required": true,
             "max": 1,
