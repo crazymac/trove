@@ -321,3 +321,9 @@ class API(proxy.RpcProxy):
         LOG.debug(_("Applying overrides on Instance %s"), self.id)
         LOG.debug(_("Applying overrides values %s") % overrides)
         self._cast("apply_overrides", overrides=overrides)
+
+    def save_instance_log(self, context, log_file):
+        """Make a synchronous call to save dbinstance log file."""
+        LOG.debug(_("Save instance log file: %s") % log_file)
+        return self._call("save_instance_log", AGENT_HIGH_TIMEOUT,
+                          log_file=log_file)

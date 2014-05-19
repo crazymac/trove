@@ -275,6 +275,12 @@ class ApiTest(testtools.TestCase):
         # verify
         self._verify_rpc_cast(exp_msg, rpc.cast)
 
+    def test_save_instance_log(self):
+        rpc.call = mock.Mock()
+        exp_msg = RpcMsgMatcher('save_instance_log', 'log_file')
+        self.api.save_instance_log('context', 'file')
+        self._verify_rpc_call(exp_msg, rpc.call)
+
     def _verify_rpc_connection_and_cast(self, rpc, mock_conn, exp_msg):
         rpc.create_connection.assert_called_with(new=True)
         mock_conn.create_consumer.assert_called_with(

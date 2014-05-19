@@ -174,3 +174,7 @@ class Manager(periodic_task.PeriodicTasks):
     def apply_overrides(self, context, overrides):
         raise exception.DatastoreOperationNotSupported(
             operation='apply_overrides', datastore=MANAGER)
+
+    def save_instance_log(self, context, log_file):
+        raise exception.DatastoreOperationNotSupported(
+            operation='save_instance_log', datastore=MANAGER)

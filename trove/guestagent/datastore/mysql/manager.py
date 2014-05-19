@@ -18,6 +18,7 @@
 
 import os
 from trove.common import cfg
+from trove.common import exception
 from trove.common import instance as rd_instance
 from trove.guestagent import dbaas
 from trove.guestagent import backup
@@ -203,3 +204,7 @@ class Manager(periodic_task.PeriodicTasks):
     def apply_overrides(self, context, overrides):
         app = MySqlApp(MySqlAppStatus.get())
         app.apply_overrides(overrides)
+
+    def save_instance_log(self, context, log_file):
+        raise exception.DatastoreOperationNotSupported(
+            operation='save_instance_log', datastore=MANAGER)
