@@ -313,7 +313,7 @@ class FreshInstanceTasks(FreshInstance, NotifyMixin, ConfigurationMixin):
         try:
             timeout = (CONF.restore_usage_timeout if backup_info
                        else CONF.usage_timeout)
-            utils.poll_until(self._service_is_active,
+            utils.poll_until(self._check_service_is_active,
                              sleep_time=USAGE_SLEEP_TIME,
                              time_out=timeout)
             LOG.info(_("Created instance %s successfully.") % self.id)
@@ -425,7 +425,7 @@ class FreshInstanceTasks(FreshInstance, NotifyMixin, ConfigurationMixin):
                       {'text': InstanceTasks.
                        BUILDING_ERROR_TIMEOUT_GA.db_text})
 
-    def _service_is_active(self):
+    def _check_service_is_active(self):
         """
         Check that the database guest is active.
 
@@ -444,12 +444,16 @@ class FreshInstanceTasks(FreshInstance, NotifyMixin, ConfigurationMixin):
         elif status not in [rd_instance.ServiceStatuses.NEW,
                             rd_instance.ServiceStatuses.BUILDING]:
             raise TroveError(_("Service not active, status: %s") % status)
+        return False
 
-        c_id = self.db_info.compute_instance_id
-        nova_status = self.nova_client.servers.get(c_id).status
+    def _check_compute_instance_is_active(self):
+        nova_status = self.nova_client.servers.get(
+            self.db_info.compute_instance_id).status
+        if nova_status == InstanceStatus.ACTIVE:
+            return True
         if nova_status in [InstanceStatus.ERROR,
                            InstanceStatus.FAILED]:
-            raise TroveError(_("Server not active, status: %s") % nova_status)
+            raise TroveError(_("Server not active, status: %s.") % nova_status)
         return False
 
     def _create_server_volume(self, flavor_id, image_id, security_groups,
@@ -472,6 +476,10 @@ class FreshInstanceTasks(FreshInstance, NotifyMixin, ConfigurationMixin):
                 availability_zone=availability_zone,
                 nics=nics, config_drive=config_drive,
                 userdata=userdata)
+            # Record the server ID
+            self.update_db(compute_instance_id=server.id)
+
+            self._verify_compute_instance_is_active(CONF.usage_timeout)
             LOG.debug("Created new compute instance %(server_id)s "
                       "for id: %(id)s" %
                       {'server_id': server.id, 'id': self.id})
@@ -482,9 +490,9 @@ class FreshInstanceTasks(FreshInstance, NotifyMixin, ConfigurationMixin):
             for volume in server_dict.get('os:volumes', []):
                 volume_id = volume.get('id')
 
-            # Record the server ID and volume ID in case something goes wrong.
-            self.update_db(compute_instance_id=server.id, volume_id=volume_id)
-        except Exception as e:
+            # Record the volume ID in case something goes wrong.
+            self.update_db(volume_id=volume_id)
+        except (nova_exceptions.ClientException, TroveError) as e:
             msg = _("Error creating server and volume for "
                     "instance %s") % self.id
             LOG.debug("End _create_server_volume for id: %s" % self.id)
@@ -608,7 +616,6 @@ class FreshInstanceTasks(FreshInstance, NotifyMixin, ConfigurationMixin):
                                            availability_zone, nics):
         LOG.debug("Begin _create_server_volume_individually for id: %s" %
                   self.id)
-        server = None
         volume_info = self._build_volume_info(datastore_manager,
                                               volume_size=volume_size)
         block_device_mapping = volume_info['block_device']
@@ -617,10 +624,13 @@ class FreshInstanceTasks(FreshInstance, NotifyMixin, ConfigurationMixin):
                                          datastore_manager,
                                          block_device_mapping,
                                          availability_zone, nics)
-            server_id = server.id
-            # Save server ID.
-            self.update_db(compute_instance_id=server_id)
-        except Exception as e:
+
+            self.update_db(compute_instance_id=server.id)
+
+            self._verify_compute_instance_is_active(
+                CONF.get(datastore_manager).usage_timeout)
+
+        except (nova_exceptions.ClientException, TroveError) as e:
             msg = _("Failed to create server for instance %s") % self.id
             err = inst_models.InstanceTasks.BUILDING_ERROR_SERVER
             self._log_and_raise(e, msg, err)
@@ -742,6 +752,18 @@ class FreshInstanceTasks(FreshInstance, NotifyMixin, ConfigurationMixin):
                   "for instance %(id)s" %
                   {'server_id': server.id, 'id': self.id})
         return server
+
+    def _verify_compute_instance_is_active(self, timeout):
+        """
+        Verifies that compute instance reached ACTIVE state
+
+        @param timeout: polling procedure timeout
+        @type timeout int
+        """
+        utils.poll_until(
+            self._check_compute_instance_is_active,
+            sleep_time=USAGE_SLEEP_TIME,
+            time_out=timeout)
 
     def _guest_prepare(self, flavor_ram, volume_info,
                        packages, databases, users, backup_info=None,

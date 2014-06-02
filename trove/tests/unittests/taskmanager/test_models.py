@@ -55,8 +55,10 @@ VOLUME_ID = 'volume-id-1'
 
 
 class FakeOptGroup(object):
-    def __init__(self, tcp_ports=['3306', '3301-3307'],
+    def __init__(self, cl=None, tcp_ports=['3306', '3301-3307'],
                  udp_ports=[]):
+        self.usage_timeout = 350
+        self.cloudinit_location = cl
         self.tcp_ports = tcp_ports
         self.udp_ports = udp_ports
 
@@ -196,6 +198,10 @@ class FreshInstanceTasksTest(testtools.TestCase):
             f.write(self.guestconfig_content)
         self.freshinstancetasks = taskmanager_models.FreshInstanceTasks(
             None, Mock(), None, None)
+        self.orig = self.freshinstancetasks._check_compute_instance_is_active
+        self.freshinstancetasks._check_compute_instance_is_active = Mock(
+            return_value=True)
+        self.datastore_manager = 'mysql'
 
     def tearDown(self):
         super(FreshInstanceTasksTest, self).tearDown()
@@ -203,6 +209,7 @@ class FreshInstanceTasksTest(testtools.TestCase):
         os.remove(self.guestconfig)
         InstanceServiceStatus.find_by = self.orig_ISS_find_by
         DBInstance.find_by = self.orig_DBI_find_by
+        self.freshinstancetasks._check_compute_instance_is_active = self.orig
 
     @patch('trove.taskmanager.models.CONF')
     def test_create_instance_userdata(self, mock_conf):
@@ -213,25 +220,29 @@ class FreshInstanceTasksTest(testtools.TestCase):
         def fake_conf_getter(*args, **kwargs):
             if args[0] == 'cloudinit_location':
                 return cloudinit_location
-            else:
-                return ''
+            elif args[0] == datastore_manager:
+                return FakeOptGroup()
+            return ''
+
         mock_conf.get.side_effect = fake_conf_getter
 
         server = self.freshinstancetasks._create_server(
             None, None, None, datastore_manager, None, None, None)
         self.assertEqual(server.userdata, self.userdata)
 
+    def fake_conf_getter(self, *args, **kwargs):
+        if args[0] == 'guest_config':
+            return self.guestconfig
+        elif args[0] == "mysql":
+            return FakeOptGroup()
+        return ''
+
     @patch('trove.taskmanager.models.CONF')
     def test_create_instance_guestconfig(self, mock_conf):
-        def fake_conf_getter(*args, **kwargs):
-            if args[0] == 'guest_config':
-                return self.guestconfig
-            else:
-                return ''
-        mock_conf.get.side_effect = fake_conf_getter
+        mock_conf.get.side_effect = self.fake_conf_getter
         # execute
         server = self.freshinstancetasks._create_server(
-            None, None, None, "test", None, None, None)
+            None, None, None, "mysql", None, None, None)
         # verify
         self.assertTrue('/etc/trove-guestagent.conf' in server.files)
         self.assertEqual(server.files['/etc/trove-guestagent.conf'],
@@ -239,34 +250,35 @@ class FreshInstanceTasksTest(testtools.TestCase):
 
     @patch('trove.taskmanager.models.CONF')
     def test_create_instance_with_az_kwarg(self, mock_conf):
-        mock_conf.get.return_value = ''
+        mock_conf.get.side_effect = self.fake_conf_getter
         # execute
         server = self.freshinstancetasks._create_server(
-            None, None, None, None, None, availability_zone='nova', nics=None)
+            None, None, None, 'mysql',
+            None, availability_zone='nova', nics=None)
         # verify
         self.assertIsNotNone(server)
 
     @patch('trove.taskmanager.models.CONF')
     def test_create_instance_with_az(self, mock_conf):
-        mock_conf.get.return_value = ''
+        mock_conf.get.side_effect = self.fake_conf_getter
         # execute
         server = self.freshinstancetasks._create_server(
-            None, None, None, None, None, 'nova', None)
+            None, None, None, 'mysql', None, 'nova', None)
         # verify
         self.assertIsNotNone(server)
 
     @patch('trove.taskmanager.models.CONF')
     def test_create_instance_with_az_none(self, mock_conf):
-        mock_conf.get.return_value = ''
+        mock_conf.get.side_effect = self.fake_conf_getter
         # execute
         server = self.freshinstancetasks._create_server(
-            None, None, None, None, None, None, None)
+            None, None, None, "mysql", None, None, None)
         # verify
         self.assertIsNotNone(server)
 
     @patch('trove.taskmanager.models.CONF')
     def test_update_status_of_intance_failure(self, mock_conf):
-        mock_conf.get.return_value = ''
+        mock_conf.get.side_effect = self.fake_conf_getter
         InstanceServiceStatus.find_by = Mock(
             return_value=fake_InstanceServiceStatus.find_by())
         DBInstance.find_by = Mock(
