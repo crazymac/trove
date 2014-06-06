@@ -981,7 +981,7 @@ class DBInstance(dbmodels.DatabaseModelBase):
     _data_fields = ['name', 'created', 'compute_instance_id',
                     'task_id', 'task_description', 'task_start_time',
                     'volume_id', 'deleted', 'tenant_id',
-                    'datastore_version_id', 'configuration_id']
+                    'datastore_version_id', 'configuration_id', 'stack_id']
 
     def __init__(self, task_status, **kwargs):
         """

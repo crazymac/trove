@@ -411,9 +411,13 @@ class FreshInstanceTasks(FreshInstance, NotifyMixin, ConfigurationMixin):
                           "AvailabilityZone": availability_zone,
                           "TenantId": self.tenant_id}
             stack_name = 'trove-%s' % self.id
-            client.stacks.create(stack_name=stack_name,
-                                 template=heat_template,
-                                 parameters=parameters)
+            stack = client.stacks.create(
+                stack_name=stack_name,
+                template=heat_template,
+                parameters=parameters)
+
+            self.update_db(stack_id=stack['stack']['id'])
+
             try:
                 utils.poll_until(
                     lambda: client.stacks.get(stack_name),
