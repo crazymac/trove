@@ -49,7 +49,6 @@ class ConfigurationsController(wsgi.Controller):
         context = req.environ[wsgi.CONTEXT_KEY]
         configuration = models.Configuration.load(context, id)
         configuration_items = models.Configuration.load_items(context, id)
-
         configuration.instance_count = instances_models.DBInstance.find_all(
             tenant_id=context.tenant,
             configuration_id=configuration.id,
