@@ -17,6 +17,8 @@
 import os
 from trove.common import cfg
 from trove.common import exception
+from trove.common import instance as rd_instance
+from trove.guestagent import backup
 from trove.guestagent import volume
 from trove.guestagent.datastore.cassandra import service
 from trove.openstack.common import periodic_task
@@ -82,7 +84,8 @@ class Manager(periodic_task.PeriodicTasks):
             device.mount(mount_point)
             LOG.debug("Mounting new volume.")
             self.app.restart()
-
+        if backup_info:
+            self._perform_restore(backup_info, context, mount_point)
         self.appStatus.end_install_or_restart()
         LOG.info(_('"prepare" call has finished.'))
 
@@ -144,13 +147,30 @@ class Manager(periodic_task.PeriodicTasks):
         raise exception.DatastoreOperationNotSupported(
             operation='is_root_enabled', datastore=MANAGER)
 
-    def _perform_restore(self, backup_info, context, restore_location, app):
-        raise exception.DatastoreOperationNotSupported(
-            operation='_perform_restore', datastore=MANAGER)
+    def _perform_restore(self, backup_info, context, restore_location):
+        LOG.info(_("Restoring database from backup %s") % backup_info['id'])
+        try:
+            backup.restore(context, backup_info, restore_location)
+        except Exception as e:
+            LOG.error(e)
+            LOG.error(_("Error performing restore from backup %s") %
+                      backup_info['id'])
+            self.app.status.set_status(rd_instance.ServiceStatuses.FAILED)
+            raise
+        LOG.info(_("Restored database successfully"))
 
     def create_backup(self, context, backup_info):
-        raise exception.DatastoreOperationNotSupported(
-            operation='create_backup', datastore=MANAGER)
+        """
+        Entry point for initiating a backup for this guest agents db instance.
+        The call currently blocks until the backup is complete or errors. If
+        device_path is specified, it will be mounted based to a point specified
+        in configuration.
+
+        :param backup_info: a dictionary containing the db instance id of the
+                            backup task, location, type, and other data.
+        """
+
+        backup.backup(context, backup_info)
 
     def mount_volume(self, context, device_path=None, mount_point=None):
         device = volume.VolumeDevice(device_path)

@@ -163,14 +163,6 @@ common_opts = [
                default='trove.guestagent.backup.backup_types.InnoBackupEx'),
     cfg.DictOpt('backup_runner_options', default={},
                 help='Additional options to be passed to the backup runner.'),
-    cfg.StrOpt('backup_strategy', default='InnoBackupEx',
-               help='Default strategy to perform backups.'),
-    cfg.StrOpt('backup_namespace',
-               default='trove.guestagent.strategies.backup.mysql_impl',
-               help='Namespace to load backup strategies from.'),
-    cfg.StrOpt('restore_namespace',
-               default='trove.guestagent.strategies.restore.mysql_impl',
-               help='Namespace to load restore strategies from.'),
     cfg.DictOpt('backup_incremental_strategy',
                 default={'InnoBackupEx': 'InnoBackupExIncremental'},
                 help='Incremental Backup Runner based on the default'
@@ -294,6 +286,13 @@ mysql_opts = [
                 "instance-create as the 'password' field."),
     cfg.IntOpt('usage_timeout', default=400,
                help='Timeout to wait for a guest to become active.'),
+    cfg.StrOpt('backup_namespace',
+               default='trove.guestagent.strategies.backup.mysql_impl',
+               help='Namespace to load backup strategies from.'),
+    cfg.StrOpt('restore_namespace',
+               default='trove.guestagent.strategies.restore.mysql_impl',
+               help='Namespace to load restore strategies from.'),
+
 ]
 
 # Percona
@@ -321,6 +320,12 @@ percona_opts = [
                 "instance-create as the 'password' field."),
     cfg.IntOpt('usage_timeout', default=450,
                help='Timeout to wait for a guest to become active.'),
+    cfg.StrOpt('backup_namespace',
+               default='trove.guestagent.strategies.backup.mysql_impl',
+               help='Namespace to load backup strategies from.'),
+    cfg.StrOpt('restore_namespace',
+               default='trove.guestagent.strategies.restore.mysql_impl',
+               help='Namespace to load restore strategies from.'),
 ]
 
 # Redis
@@ -358,13 +363,19 @@ cassandra_opts = [
                 help='List of UDP ports and/or port ranges to open'
                      ' in the security group (only applicable '
                      'if trove_security_groups_support is True).'),
-    cfg.StrOpt('backup_strategy', default=None,
+    cfg.StrOpt('backup_strategy', default='NodetoolSnapshot',
                help='Default strategy to perform backups.'),
     cfg.StrOpt('mount_point', default='/var/lib/cassandra',
                help="Filesystem path for mounting "
                "volumes if volume support is enabled."),
     cfg.IntOpt('usage_timeout', default=600,
                help='Timeout to wait for a guest to become active.'),
+    cfg.StrOpt('backup_namespace',
+               default='trove.guestagent.strategies.backup.cassandra_impl',
+               help='Namespace to load backup strategies from.'),
+    cfg.StrOpt('restore_namespace',
+               default='trove.guestagent.strategies.restore.cassandra_impl',
+               help='Namespace to load restore strategies from.'),
 ]
 
 #Couchbase

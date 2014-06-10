@@ -40,6 +40,9 @@ class VolumeDevice(object):
         self.mount(TMP_MOUNT_POINT, write_to_fstab=False)
         if not mysql_base[-1] == '/':
             mysql_base = "%s/" % mysql_base
+        # Valid exit codes: 0, 24
+        # Exit code 24 appeart when files are being
+        # modified when rsync was executed
         utils.execute("sudo", "rsync", "--safe-links", "--perms",
                       "--recursive", "--owner", "--group", "--xattrs",
                       "--sparse", mysql_base, TMP_MOUNT_POINT)

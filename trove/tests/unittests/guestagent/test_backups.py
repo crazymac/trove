@@ -14,6 +14,7 @@
 
 import testtools
 import mock
+from trove.guestagent.common import operating_system
 
 import trove.guestagent.strategies.backup.base as backupBase
 import trove.guestagent.strategies.restore.base as restoreBase
@@ -63,6 +64,16 @@ PREPARE = ("sudo innobackupex --apply-log /var/lib/mysql "
            "--defaults-file=/var/lib/mysql/backup-my.cnf "
            "--ibbackup xtrabackup 2>/tmp/innoprepare.log")
 CRYPTO_KEY = "default_aes_cbc_key"
+
+BACKUP_NODETOOLSNAPSHOT_CLS = ("trove.guestagent.strategies.backup."
+                               "cassandra_impl.NodetoolSnapshot")
+RESTORE_NODETOOLSNAPSHOT_CLS = ("trove.guestagent.strategies.restore."
+                                "cassandra_impl.NodetoolSnapshot")
+
+NODETOOLSNAPSHOT_CMD = "cat /tmp/all_ks.tar.bz2"
+RESTORE_NODETOOLSNAPSHOT_CMD = ('cat > backup.tar.bz2' + '.enc'
+                                if restoreBase.RestoreRunner.is_encrypted
+                                else None)
 
 
 class GuestAgentBackupTest(testtools.TestCase):
@@ -244,3 +255,37 @@ class GuestAgentBackupTest(testtools.TestCase):
                             location="filename", checksum="md5")
         self.assertEqual(restr.restore_cmd,
                          DECRYPT + PIPE + UNZIP + PIPE + SQLDUMP_RESTORE)
+
+    def test_backup_encrypted_nodetoolsnapshot_command(self):
+        backupBase.BackupRunner.is_encrypted = True
+        backupBase.BackupRunner.encrypt_key = CRYPTO_KEY
+        operating_system.get_ip_address = mock.Mock(
+            return_value="1.1.1.1")
+        RunnerClass = utils.import_class(BACKUP_NODETOOLSNAPSHOT_CLS)
+        bkp = RunnerClass(12345)
+        self.assertIsNotNone(bkp)
+        self.assertEqual(
+            NODETOOLSNAPSHOT_CMD + PIPE + ENCRYPT, bkp.command)
+        self.assertIn("tar.bz2.enc", bkp.manifest)
+
+    def test_backup_not_encrypted_nodetoolsnapshot_command(self):
+        backupBase.BackupRunner.is_encrypted = False
+        backupBase.BackupRunner.encrypt_key = CRYPTO_KEY
+        operating_system.get_ip_address = mock.Mock(
+            return_value="1.1.1.1")
+        RunnerClass = utils.import_class(BACKUP_NODETOOLSNAPSHOT_CLS)
+        bkp = RunnerClass(12345)
+        self.assertIsNotNone(bkp)
+        self.assertEqual(NODETOOLSNAPSHOT_CMD, bkp.command)
+        self.assertIn("tar.bz2", bkp.manifest)
+
+    def test_restore_nodetoolsnapshot_encrypted_command(self):
+        restoreBase.RestoreRunner.is_zipped = False
+        restoreBase.RestoreRunner.is_encrypted = True
+        restoreBase.RestoreRunner.decrypt_key = CRYPTO_KEY
+        RunnerClass = utils.import_class(RESTORE_NODETOOLSNAPSHOT_CLS)
+        restr = RunnerClass(None, restore_location="/var/lib/cassandra",
+                            location="filename", checksum="md5")
+        self.assertIsNotNone(restr)
+        self.assertEqual(restr.base_restore_cmd,
+                         RESTORE_NODETOOLSNAPSHOT_CMD)

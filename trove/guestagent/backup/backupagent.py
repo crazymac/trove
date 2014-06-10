@@ -35,8 +35,9 @@ MANAGER = CONF.datastore_manager
 # If datastore manager is not mentioned in guest
 # configuration file, would be used mysql as datastore_manager by the default
 STRATEGY = CONF.get('mysql' if not MANAGER else MANAGER).backup_strategy
-NAMESPACE = CONF.backup_namespace
-
+NAMESPACE = CONF.get('mysql' if not MANAGER else MANAGER).backup_namespace
+RESTORE_NAMESPACE = (CONF.get('mysql'
+                              if not MANAGER else MANAGER).restore_namespace)
 RUNNER = get_backup_strategy(STRATEGY, NAMESPACE)
 EXTRA_OPTS = CONF.backup_runner_options.get(STRATEGY, '')
 
@@ -52,9 +53,10 @@ class BackupAgent(object):
     def _get_restore_runner(self, backup_type):
         """Returns the RestoreRunner associated with this backup type."""
         try:
-            runner = get_restore_strategy(backup_type, CONF.restore_namespace)
+            runner = get_restore_strategy(backup_type, RESTORE_NAMESPACE)
         except ImportError:
-            raise UnknownBackupType("Unknown Backup type: %s" % backup_type)
+            raise UnknownBackupType("Unknown Backup type: %s in namespace %s"
+                                    % (backup_type, RESTORE_NAMESPACE))
         return runner
 
     def execute_backup(self, context, backup_info,

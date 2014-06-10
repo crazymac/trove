@@ -16,8 +16,10 @@ import os
 
 import testtools
 from mock import MagicMock
+
 from trove.common.context import TroveContext
 from trove.common.instance import ServiceStatuses
+from trove.guestagent import backup
 from trove.guestagent import volume
 from trove.guestagent.common import operating_system
 from trove.guestagent.datastore.cassandra import service as cass_service
@@ -120,7 +122,7 @@ class GuestAgentCassandraDBManagerTest(testtools.TestCase):
         volume.VolumeDevice.migrate_data = MagicMock(return_value=None)
         volume.VolumeDevice.mount = MagicMock(return_value=None)
         volume.VolumeDevice.mount_points = MagicMock(return_value=[])
-
+        backup.restore = MagicMock(return_value=None)
         # invocation
         self.manager.prepare(context=self.context, packages=packages,
                              config_contents=config_content,
