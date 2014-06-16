@@ -5,7 +5,7 @@ remote_nova_client = trove.tests.fakes.nova.fake_create_nova_client
 remote_guest_client = trove.tests.fakes.guestagent.fake_create_guest_client
 remote_swift_client = trove.tests.fakes.swift.fake_create_swift_client
 remote_cinder_client = trove.tests.fakes.nova.fake_create_cinder_client
-
+remote_heat_client = trove.tests.fakes.heat.fake_create_heat_client
 # Fake out the RPC implementation
 rpc_backend = trove.common.rpc.impl_fake
 

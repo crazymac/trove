@@ -145,16 +145,16 @@ class HostsMgmtCommands(object):
             check.true(percent_used < upper,
                        "percentUsed %r is above the upper boundary %r"
                        % (percent_used, upper))
-            check.true(used_ram < total_ram,
+            check.true(used_ram <= total_ram,
                        "usedRAM %r should be less than totalRAM %r"
                        % (used_ram, total_ram))
-            check.true(percent_used < 100,
+            check.true(percent_used <= 100,
                        "percentUsed should be less than 100 but was %r"
                        % percent_used)
             check.true(total_ram > 0,
                        "totalRAM should be greater than 0 but was %r"
                        % total_ram)
-            check.true(used_ram < total_ram,
+            check.true(used_ram <= total_ram,
                        "usedRAM %r should be less than totalRAM %r"
                        % (used_ram, total_ram))
 

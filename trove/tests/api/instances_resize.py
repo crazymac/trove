@@ -32,7 +32,7 @@ from trove.instance.models import DBInstance
 from trove.instance.models import InstanceServiceStatus
 from trove.instance.tasks import InstanceTasks
 from trove.openstack.common.rpc.common import RPCException
-from trove.taskmanager import models as models
+from trove.taskmanager import common
 from trove.tests.fakes import nova
 from trove.tests.util import test_config
 
@@ -58,7 +58,7 @@ class ResizeTestBase(TestCase):
             datastore_version_id=test_config.dbaas_datastore_version_id,
             task_status=InstanceTasks.RESIZING)
         self.server = self.mock.CreateMock(Server)
-        self.instance = models.BuiltInstanceTasks(
+        self.instance = common.BuiltInstanceTasksMixin(
             context,
             self.db_info,
             self.server,
@@ -117,7 +117,7 @@ class ResizeTests(ResizeTestBase):
         self._init()
         # By the time flavor objects pass over amqp to the
         # resize action they have been turned into dicts
-        self.action = models.ResizeAction(self.instance,
+        self.action = common.ResizeAction(self.instance,
                                           OLD_FLAVOR.__dict__,
                                           NEW_FLAVOR.__dict__)
 
@@ -243,7 +243,7 @@ class MigrateTests(ResizeTestBase):
     def setUp(self):
         super(MigrateTests, self).setUp()
         self._init()
-        self.action = models.MigrateAction(self.instance)
+        self.action = common.MigrateAction(self.instance)
 
     def _execute_action(self):
         self.instance.update_db(task_status=InstanceTasks.NONE)

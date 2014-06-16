@@ -1,4 +1,17 @@
 [DEFAULT]
+
+# Manager impl for the taskmanager
+# Available options:
+# trove.taskmanager.resources.native.Native - uses nova, cinder clients;
+# trove.taskmanager.resources.orchestrator.Orchestrator - uses heat client.
+# trove.taskmanager.resources.migration.Migration - made for backward compatibility
+#                             with previous deployments, engine is being loaded by the rule
+#                             based upon provisioning engine defined by base instance model,
+#                             based on orchestrator manager executes
+#                             resize tasks defined by provisioning engine used at instance provisioning.
+
+taskmanager_manager=trove.taskmanager.native.Native
+
 # Show more verbose log output (sets INFO log level output)
 verbose = True
 

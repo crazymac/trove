@@ -351,7 +351,8 @@ class Controller(object):
         webob.exc.HTTPNotImplemented: [
             exception.VolumeNotSupported,
             exception.LocalStorageNotSupported,
-            exception.DatastoreOperationNotSupported
+            exception.DatastoreOperationNotSupported,
+            exception.OperationIsNotSuppotedByTaskmanager
         ],
     }
 

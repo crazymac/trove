@@ -26,6 +26,7 @@ import trove.common.context
 from trove.datastore import models as datastore_models
 import trove.db.models
 from trove.taskmanager import models as taskmanager_models
+from trove.taskmanager import common
 import trove.guestagent.api
 from trove.backup import models as backup_models
 from trove.common import remote
@@ -182,7 +183,8 @@ class FreshInstanceTasksTest(testtools.TestCase):
         mock_datastore.start()
         self.addCleanup(mock_datastore.stop)
 
-        taskmanager_models.FreshInstanceTasks.nova_client = fake_nova_client()
+        (taskmanager_models.
+         NativeFreshInstanceTasks.nova_client) = fake_nova_client()
         self.orig_ISS_find_by = InstanceServiceStatus.find_by
         self.orig_DBI_find_by = DBInstance.find_by
         self.userdata = "hello moto"
@@ -193,8 +195,9 @@ class FreshInstanceTasksTest(testtools.TestCase):
         with NamedTemporaryFile(delete=False) as f:
             self.guestconfig = f.name
             f.write(self.guestconfig_content)
-        self.freshinstancetasks = taskmanager_models.FreshInstanceTasks(
-            None, Mock(), None, None)
+        self.freshinstancetasks = (
+            taskmanager_models.NativeFreshInstanceTasks(
+                None, Mock(), None, None))
 
     def tearDown(self):
         super(FreshInstanceTasksTest, self).tearDown()
@@ -270,7 +273,7 @@ class FreshInstanceTasksTest(testtools.TestCase):
             return_value=fake_InstanceServiceStatus.find_by())
         DBInstance.find_by = Mock(
             return_value=fake_DBInstance.find_by())
-        self.freshinstancetasks.update_statuses_on_time_out()
+        self.freshinstancetasks._update_statuses_on_time_out()
         self.assertEqual(fake_InstanceServiceStatus.find_by().get_status(),
                          ServiceStatuses.FAILED_TIMEOUT_GUESTAGENT)
         self.assertEqual(fake_DBInstance.find_by().get_task_status(),
@@ -352,9 +355,9 @@ class ResizeVolumeTest(testtools.TestCase):
         self.instance = Mock()
         self.old_vol_size = 1
         self.new_vol_size = 2
-        self.action = taskmanager_models.ResizeVolumeAction(self.instance,
-                                                            self.old_vol_size,
-                                                            self.new_vol_size)
+        self.action = common.ResizeVolumeAction(self.instance,
+                                                self.old_vol_size,
+                                                self.new_vol_size)
 
         class FakeGroup():
             def __init__(self):
@@ -488,7 +491,7 @@ class BuiltInstanceTasksTest(testtools.TestCase):
         datastore_models.Datastore.load = MagicMock(
             return_value=datastore_models.Datastore(db_instance))
 
-        self.instance_task = taskmanager_models.BuiltInstanceTasks(
+        self.instance_task = taskmanager_models.NativeBuiltInstanceTasks(
             trove.common.context.TroveContext(),
             db_instance,
             stub_nova_server,
@@ -683,7 +686,7 @@ class NotifyMixinTest(testtools.TestCase):
             'mysql': '123',
             'percona': 'abc'
         }
-        mixin = taskmanager_models.NotifyMixin()
+        mixin = common.NotifyMixin()
         self.assertThat(mixin._get_service_id('mysql', id_map), Equals('123'))
 
     def test_get_service_id_unknown(self):
@@ -691,7 +694,7 @@ class NotifyMixinTest(testtools.TestCase):
             'mysql': '123',
             'percona': 'abc'
         }
-        transformer = taskmanager_models.NotifyMixin()
+        transformer = common.NotifyMixin()
         self.assertThat(transformer._get_service_id('m0ng0', id_map),
                         Equals('unknown-service-id-error'))
 

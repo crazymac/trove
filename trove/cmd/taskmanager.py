@@ -15,15 +15,17 @@
 from oslo.config import cfg as openstack_cfg
 from trove.cmd.common import with_initialize
 
-
-extra_opts = [openstack_cfg.StrOpt('taskmanager_manager')]
+extra_opts = [openstack_cfg.StrOpt(
+    'resource_manager',
+    default='trove.taskmanager.resources.orchestrator.Orchestrator'
+)]
 
 
 def startup(conf, topic):
     from trove.common.rpc import service as rpc_service
     from trove.openstack.common import service as openstack_service
 
-    server = rpc_service.RpcService(manager=conf.taskmanager_manager,
+    server = rpc_service.RpcService(manager=conf.resource_manager,
                                     topic=topic)
     launcher = openstack_service.launch(server)
     launcher.wait()

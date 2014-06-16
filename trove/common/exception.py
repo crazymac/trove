@@ -440,3 +440,8 @@ class NoServiceEndpoint(TroveError):
 class EmptyCatalog(NoServiceEndpoint):
     """The service catalog is empty."""
     message = 'Empty catalog'
+
+
+class OperationIsNotSuppotedByTaskmanager(DatastoreOperationNotSupported):
+    message = _("Current Taskmanager service manager "
+                "can't handle %(operation)s operation")

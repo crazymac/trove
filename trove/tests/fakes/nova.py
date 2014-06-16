@@ -17,6 +17,7 @@ from novaclient import exceptions as nova_exceptions
 from trove.common.exception import PollTimeOut
 from trove.common import instance as rd_instance
 from trove.openstack.common import log as logging
+from trove.openstack.common.gettextutils import _
 from trove.tests.fakes.common import authorize
 
 import eventlet
@@ -608,7 +609,7 @@ class FakeHost(object):
         """
         self.instances = []
         self.percentUsed = 0
-        self.totalRAM = 2004  # 16384
+        self.totalRAM = 2048
         self.usedRAM = 0
         for server in self.servers.list():
             print(server)

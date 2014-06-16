@@ -21,13 +21,15 @@ import os
 import urllib
 import sys
 import traceback
+import proboscis
+import wsgi_intercept
 
 from trove.common import cfg
 from trove.openstack.common import log as logging
+from trove.openstack.common.gettextutils import _
 from trove.tests.config import CONFIG
 from wsgi_intercept.httplib2_intercept import install as wsgi_install
-import proboscis
-import wsgi_intercept
+
 from trove.openstack.common.rpc import service as rpc_service
 
 import eventlet
@@ -52,20 +54,28 @@ def add_support_for_localization():
     gettext.install('nova', unicode=1)
 
 
-def initialize_trove(config_file):
+def initialize_taskmanager(resource_manager='native'):
+    topic = CONF.taskmanager_queue
+    manager_impl = None
+    if resource_manager == 'native':
+        from trove.taskmanager.resources import native
+        manager_impl = native.Native()
+    elif resource_manager == 'orchestrator':
+        from trove.taskmanager.resources import orchestrator
+        manager_impl = orchestrator.Orchestrator()
+
+    taskman_service = rpc_service.Service(None, topic=topic,
+                                          manager=manager_impl)
+    taskman_service.start()
+
+
+def initialize_trove_api(config_file):
     from trove.openstack.common import pastedeploy
 
     cfg.CONF(args=[],
              project='trove',
              default_config_files=[config_file])
     logging.setup(None)
-    topic = CONF.taskmanager_queue
-
-    from trove.taskmanager import manager
-    manager_impl = manager.Manager()
-    taskman_service = rpc_service.Service(None, topic=topic,
-                                          manager=manager_impl)
-    taskman_service.start()
 
     return pastedeploy.paste_deploy_app(config_file, 'trove', {})
 
@@ -142,31 +152,56 @@ def parse_args_for_test_config():
             return arg[14:]
     return 'etc/tests/localhost.test.conf'
 
-if __name__ == "__main__":
+
+def do_common_setup(resource_manager):
+    wsgi_install()
+    add_support_for_localization()
+    # Load Trove app
+    # Paste file needs absolute path
+    config_file = os.path.realpath('etc/trove/trove.conf.test')
+    # 'etc/trove/test-api-paste.ini'
+    app = initialize_trove_api(config_file)
+    # starting taskmanager with native services
+    initialize_taskmanager(resource_manager)
+    # Initialize sqlite database.
+    initialize_database()
+    # Swap out WSGI, httplib, and several sleep functions
+    # with test doubles.
+    initialize_fakes(app)
+
+    # Initialize the test configuration.
+    test_config_file = parse_args_for_test_config()
+    CONFIG.load_from_file(test_config_file)
+
+
+def _import_shared_tests():
     try:
-        wsgi_install()
-        add_support_for_localization()
-        # Load Trove app
-        # Paste file needs absolute path
-        config_file = os.path.realpath('etc/trove/trove.conf.test')
-        # 'etc/trove/test-api-paste.ini'
-        app = initialize_trove(config_file)
-        # Initialize sqlite database.
-        initialize_database()
-        # Swap out WSGI, httplib, and several sleep functions
-        # with test doubles.
-        initialize_fakes(app)
-
-        # Initialize the test configuration.
-        test_config_file = parse_args_for_test_config()
-        CONFIG.load_from_file(test_config_file)
-
-        # F401 unused imports needed for tox tests
-        from trove.tests.api import backups  # noqa
         from trove.tests.api import header  # noqa
         from trove.tests.api import limits  # noqa
         from trove.tests.api import flavors  # noqa
         from trove.tests.api import versions  # noqa
+    except Exception as e:
+        print("Run tests failed: %s" % e)
+        traceback.print_exc()
+        raise
+
+
+def run_tests_for_heat():
+    try:
+        do_common_setup('orchestrator')
+        _import_shared_tests()
+    except Exception as e:
+        print("Run tests failed: %s" % e)
+        traceback.print_exc()
+        raise
+
+
+def run_tests_for_natives():
+    try:
+        do_common_setup('native')
+
+        # F401 unused imports needed for tox tests
+        _import_shared_tests()
         from trove.tests.api import instances as rd_instances  # noqa
         from trove.tests.api import instances_actions as rd_actions  # noqa
         from trove.tests.api import instances_delete  # noqa
@@ -190,4 +225,43 @@ if __name__ == "__main__":
         traceback.print_exc()
         raise
 
+
+def _print_available():
+    print(_("Available options:\n"
+            "\trun_with:\n"
+            "\t\t--natives      - Executes fake tests with "
+            "native resource backend\n"
+            "\t\t--orchestrator - Executes fake tests with orchestrator "
+            "resource backend"))
+
+
+def main():
+    run_with = 'run_with'
+    expected_args_with_sub_parameters = {
+        run_with: {
+            '--natives': run_tests_for_natives,
+            '--orchestrator': run_tests_for_heat,
+            '--all': [run_tests_for_natives, run_tests_for_heat]
+        }
+    }
+    if run_with in sys.argv:
+        sub_par = sys.argv.pop(sys.argv.index(run_with) + 1)
+        del sys.argv[sys.argv.index(run_with)]
+        methods = expected_args_with_sub_parameters[run_with]
+        if sub_par in methods:
+            method_or_sequence = methods[sub_par]
+            if isinstance(method_or_sequence, list):
+                for each in method_or_sequence:
+                    if callable(each):
+                        each()
+            else:
+                method_or_sequence()
+        else:
+            _print_available()
+    else:
+        _print_available()
+
+
+if __name__ == "__main__":
+    main()
     proboscis.TestProgram().run_and_exit()
