@@ -18,6 +18,8 @@ from trove.openstack.common import log as logging
 from trove.common import extensions
 from trove.extensions.mgmt.instances.service import MgmtInstanceController
 from trove.extensions.mgmt.host.service import HostController
+from trove.extensions.mgmt.stats.service import StatsBackupsController
+from trove.extensions.mgmt.stats.service import StatsInstancesController
 from trove.extensions.mgmt.quota.service import QuotaController
 from trove.extensions.mgmt.host.instance import service as hostservice
 from trove.extensions.mgmt.volume.service import StorageController
@@ -79,5 +81,17 @@ class Mgmt(extensions.ExtensionsDescriptor):
                     'collection_name': '{tenant_id}/mgmt/hosts'},
             collection_actions={'action': 'POST'})
         resources.append(host_instances)
+
+        stats_instances = extensions.ResourceExtension(
+            '{tenant_id}/mgmt/stats/instances',
+            StatsInstancesController(),
+            member_actions={})
+        resources.append(stats_instances)
+
+        stats_backups = extensions.ResourceExtension(
+            '{tenant_id}/mgmt/stats/backups',
+            StatsBackupsController(),
+            member_actions={})
+        resources.append(stats_backups)
 
         return resources

@@ -31,6 +31,7 @@ from trove.tests.api.instances import instance_info
 from trove.tests.api.instances import TIMEOUT_INSTANCE_CREATE
 from trove.tests.api.instances import TIMEOUT_INSTANCE_DELETE
 from trove.tests.api.instances import assert_unprocessable
+from trove.tests.api.mgmt.stats import StatsBackups
 from trove import tests
 
 
@@ -156,9 +157,11 @@ class WaitForBackupCreateToFinish(object):
 
         poll_until(result_is_active)
 
+BACKUP_LIST_GROUP = "dbaas.api.backups.listing"
+
 
 @test(depends_on=[WaitForBackupCreateToFinish],
-      groups=[GROUP, tests.INSTANCES])
+      groups=[GROUP, tests.INSTANCES, BACKUP_LIST_GROUP])
 class ListBackups(object):
 
     @test
@@ -347,6 +350,8 @@ class WaitForRestoreToFinish(object):
 
 
 @test(enabled=(not CONFIG.fake_mode),
+      runs_after=[WaitForRestoreToFinish],
+      depends_on_classes=[StatsBackups],
       groups=[GROUP, tests.INSTANCES])
 class VerifyRestore(object):
 

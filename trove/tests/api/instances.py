@@ -905,9 +905,11 @@ class TestAfterInstanceCreatedGuestData(object):
         for user in instance_info.users:
             assert_true(user["name"] in usernames)
 
+INSTANCES_LIST_GROUP = "dbaas.instances.listing"
+
 
 @test(depends_on_classes=[WaitForGuestInstallationToFinish],
-      groups=[GROUP, GROUP_START, GROUP_START_SIMPLE, "dbaas.listing"])
+      groups=[GROUP, GROUP_START, GROUP_START_SIMPLE, INSTANCES_LIST_GROUP])
 class TestInstanceListing(object):
     """Test the listing of the instance information."""
 
