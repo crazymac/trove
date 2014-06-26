@@ -323,3 +323,8 @@ class DBBackup(DatabaseModelBase):
                 return False
             else:
                 raise exception.SwiftAuthError(tenant_id=context.tenant)
+
+    @classmethod
+    def update_backup(cls, backup_id, **values):
+        backup = DBBackup.get_by(id=backup_id, deleted=False)
+        backup.update(**values)

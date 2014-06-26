@@ -781,7 +781,19 @@ class BuiltInstanceTasks(BuiltInstance, NotifyMixin, ConfigurationMixin):
 
     def create_backup(self, backup_info):
         LOG.debug("Calling create_backup  %s " % self.id)
-        self.guest.create_backup(backup_info)
+        try:
+            self.guest.create_backup(backup_info)
+        except (GuestTimeout, GuestError) as ex:
+            msg = (_("Exception occurred while creating "
+                   "backup for instance %(id)s. Backup info: %(backup)s") %
+                   {'id': self.id, 'backup': backup_info})
+            LOG.exception(msg)
+            LOG.exception(str(ex))
+            self.reset_task_status()
+            bkup_models.DBBackup.update_backup(
+                backup_info['id'],
+                state=bkup_models.BackupState.FAILED)
+            raise
 
     def reboot(self):
         try:

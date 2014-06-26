@@ -30,6 +30,7 @@ import trove.guestagent.api
 from trove.backup import models as backup_models
 from trove.common import remote
 from trove.common.exception import GuestError
+from trove.common.exception import GuestTimeout
 from trove.common.exception import PollTimeOut
 from trove.common.exception import TroveError
 from trove.common.exception import MalformedSecurityGroupRuleError
@@ -479,7 +480,22 @@ class BuiltInstanceTasksTest(testtools.TestCase):
                                  tenant_id='testresize-tenant-id',
                                  volume_size='1',
                                  volume_id=VOLUME_ID)
-
+        self.backup = backup_models.DBBackup.create(
+            name="BCKP",
+            description="BCKP",
+            tenant_id="BCKP",
+            state=backup_models.BackupState.NEW,
+            instance_id=INST_ID,
+            parent_id=None,
+            datastore_version_id="1",
+            deleted=False)
+        self.backup.id = "UUID"
+        self.backup.location = 'http://xxx/z_CLOUD/12e48.xbstream.gz'
+        self.backup.size = 2.0
+        self.container_content = (None,
+                                  [{'name': 'first'},
+                                   {'name': 'second'},
+                                   {'name': 'third'}])
         # this is used during the final check of whether the resize successful
         db_instance.server_status = 'ACTIVE'
         self.db_instance = db_instance
@@ -580,6 +596,29 @@ class BuiltInstanceTasksTest(testtools.TestCase):
             self.assertThat(self.db_instance.task_status,
                             Is(InstanceTasks.NONE))
             self.assertThat(self.db_instance.flavor_id, Is('6'))
+
+    def test_try_to_create_failed_backup(self):
+
+        def side_effect(kwargs):
+            raise GuestTimeout or GuestError
+        self.instance_task.guest.create_backup = MagicMock(
+            side_effect=side_effect)
+
+        def update():
+            self.backup.state = backup_models.BackupState.FAILED
+        with patch.object(self.instance_task, 'reset_task_status',
+                          return_value=None):
+            with patch.object(backup_models.DBBackup, 'get_by',
+                              return_value=self.backup):
+                with patch.object(backup_models.DBBackup, 'update',
+                                  return_value=update()):
+                    backup_info = self.backup.__dict__
+                    self.assertRaises(
+                        GuestTimeout or GuestError,
+                        self.instance_task.create_backup, backup_info)
+                    bckp = backup_models.DBBackup.get_by(id=backup_info['id'])
+                    self.assertEqual(backup_models.BackupState.FAILED,
+                                     bckp.state)
 
 
 class BackupTasksTest(testtools.TestCase):
