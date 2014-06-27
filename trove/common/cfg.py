@@ -14,7 +14,7 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 """Routines for configuring Trove."""
-
+import os
 from oslo.config import cfg
 from trove.openstack.common import log as logging
 
@@ -124,7 +124,8 @@ common_opts = [
     cfg.StrOpt('conductor_queue', default='trove-conductor'),
     cfg.IntOpt('trove_conductor_workers', default=1),
     cfg.BoolOpt('use_nova_server_volume', default=False),
-    cfg.BoolOpt('use_heat', default=False),
+    cfg.BoolOpt('use_heat', default=os.getenv(
+        "ENABLE_HEAT_SUPPORT_FOR_TROVE", False)),
     cfg.StrOpt('device_path', default='/dev/vdb'),
     cfg.StrOpt('default_datastore', default=None,
                help="The default datastore id or name to use if one is not "
