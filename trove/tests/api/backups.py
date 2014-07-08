@@ -141,20 +141,25 @@ class WaitForBackupCreateToFinish(object):
     """
         Wait until the backup create is finished.
     """
+    @classmethod
+    def _verify_backup_fits_to_states(
+            cls, backup_id, successful_status="COMPLETED",
+            failed_status="FAILED"):
+        def result_is_active():
+            backup = instance_info.dbaas.backups.get(backup_id)
+            if backup.status == successful_status:
+                return True
+            else:
+                assert_not_equal(failed_status, backup.status)
+                return False
+
+        poll_until(result_is_active, time_out=TIMEOUT_BACKUP_CREATE)
 
     @test
     @time_out(TIMEOUT_BACKUP_CREATE)
     def test_backup_created(self):
         # This version just checks the REST API status.
-        def result_is_active():
-            backup = instance_info.dbaas.backups.get(backup_info.id)
-            if backup.status == "COMPLETED":
-                return True
-            else:
-                assert_not_equal("FAILED", backup.status)
-                return False
-
-        poll_until(result_is_active)
+        self._verify_backup_fits_to_states(backup_info.id)
 
 
 @test(depends_on=[WaitForBackupCreateToFinish],
@@ -281,13 +286,16 @@ class IncrementalBackups(object):
 class RestoreUsingBackup(object):
 
     @classmethod
-    def _restore(cls, backup_ref):
-        restorePoint = {"backupRef": backup_ref}
+    def _restore(cls, backup_ref=None):
+        restore_point = None
+        if backup_ref:
+            restore_point = {"backupRef": backup_ref}
+
         result = instance_info.dbaas.instances.create(
             instance_info.name + "_restore",
             instance_info.dbaas_flavor_href,
             instance_info.volume,
-            restorePoint=restorePoint)
+            restorePoint=restore_point)
         assert_equal(200, instance_info.dbaas.last_http_code)
         assert_equal("BUILD", result.status)
         return result.id
@@ -450,3 +458,46 @@ class DeleteBackups(object):
             raise SkipTest("Incremental Backup not created")
         assert_raises(exceptions.NotFound, instance_info.dbaas.backups.get,
                       incremental_info.id)
+
+
+@test(runs_after=[DeleteBackups],
+      groups=[GROUP, tests.INSTANCES])
+class TestFakeCreateFailedBackup(object):
+
+    def _patch_backup(self, backup_id, state):
+        from trove.backup.models import Backup
+        bkp = Backup.get_by_id(context=None, backup_id=backup_id)
+        bkp.state = state
+        bkp.save()
+
+    def _create_and_verify(self):
+        self.instance_id = RestoreUsingBackup._restore()
+        WaitForRestoreToFinish._poll(self.instance_id)
+
+    @test
+    def test_instance_created(self):
+        if not CONFIG.fake_mode:
+            raise SkipTest("Only fake mode supported")
+        self._create_and_verify()
+
+    @test(depends_on=[test_instance_created])
+    def test_create_failed_backup(self):
+        if not CONFIG.fake_mode:
+            raise SkipTest("Only fake mode supported")
+
+        self.backup = instance_info.dbaas.backups.create(
+            BACKUP_NAME, self.instance_id, BACKUP_DESC)
+
+        WaitForBackupCreateToFinish._verify_backup_fits_to_states(
+            self.backup.id)
+
+        # Before this step backups is in COMPLETED state.
+        # Test should change state to something else than COMPLETED
+        # BUILDING state was used.
+        self._patch_backup(self.backup.id, "BUILDING")
+
+        DeleteRestoreInstance._delete(self.backup.instance_id)
+        backup = instance_info.dbaas.backups.get(self.backup.id)
+        assert_equal(backup.status, "FAILED",
+                     "Backup status should be FAILED. Actual: %s"
+                     % backup.status)

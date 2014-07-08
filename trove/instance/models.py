@@ -35,7 +35,7 @@ from trove.extensions.security_group.models import SecurityGroup
 from trove.db import get_db_api
 from trove.db import models as dbmodels
 from trove.datastore import models as datastore_models
-from trove.backup.models import Backup
+from trove.backup import models as backup_models
 from trove.quota.quota import run_with_quotas
 from trove.instance.tasks import InstanceTask
 from trove.instance.tasks import InstanceTasks
@@ -286,7 +286,7 @@ class SimpleInstance(object):
             return InstanceStatus.RESIZE
 
         ### Check if there is a backup running for this instance
-        if Backup.running(self.id):
+        if backup_models.Backup.running(self.id):
             return InstanceStatus.BACKUP
 
         ### Report as Shutdown while deleting, unless there's an error.
@@ -504,6 +504,15 @@ class BaseInstance(SimpleInstance):
             LOG.debug(" ... setting status to DELETING.")
             self.update_db(task_status=InstanceTasks.DELETING,
                            configuration_id=None)
+            LOG.debug("Checking for running backups for instance: %s"
+                      % self.db_info.id)
+            backups, marker = backup_models.Backup.list_for_instance(
+                self.context, self.db_info.id)
+            for backup in backups:
+                if backup.is_running:
+                    LOG.debug("Updating backup %s for instance %s" % (
+                        backup.id, self.db_info.id))
+                    backup.update(state=backup_models.BackupState.FAILED)
             task_api.API(self.context).delete_instance(self.id)
 
         deltas = {'instances': -1}
@@ -624,7 +633,7 @@ class Instance(BuiltInstance):
                 raise exception.LocalStorageNotSpecified(flavor=flavor_id)
 
         if backup_id is not None:
-            backup_info = Backup.get_by_id(context, backup_id)
+            backup_info = backup_models.Backup.get_by_id(context, backup_id)
             if backup_info.is_running:
                 raise exception.BackupNotCompleteError(backup_id=backup_id)
 
@@ -799,7 +808,7 @@ class Instance(BuiltInstance):
             status = self.db_info.task_status
         elif not self.datastore_status.status.action_is_allowed:
             status = self.status
-        elif Backup.running(self.id):
+        elif backup_models.Backup.running(self.id):
             status = InstanceStatus.BACKUP
         else:
             # action can be performed
