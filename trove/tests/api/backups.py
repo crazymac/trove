@@ -115,6 +115,11 @@ class CreateBackups(object):
 class AfterBackupCreation(object):
 
     @test
+    def test_restore_instance_from_not_completed_backup(self):
+        assert_raises(exceptions.BadRequest,
+                      RestoreUsingBackup._restore, backup_info.id)
+
+    @test
     def test_instance_action_right_after_backup_create(self):
         """Test any instance action while backup is running."""
         assert_unprocessable(instance_info.dbaas.instances.resize_instance,
@@ -501,3 +506,12 @@ class TestFakeCreateFailedBackup(object):
         assert_equal(backup.status, "FAILED",
                      "Backup status should be FAILED. Actual: %s"
                      % backup.status)
+
+    @test(depends_on=[test_create_failed_backup])
+    def test_restore_from_failed_backup(self):
+        if not CONFIG.fake_mode:
+            raise SkipTest("Only fake mode supported")
+        assert_raises(exceptions.BadRequest,
+                      RestoreUsingBackup._restore, self.backup.id)
+        assert_equal(400, instance_info.dbaas.last_http_code)
+        instance_info.dbaas.backups.delete(self.backup.id)

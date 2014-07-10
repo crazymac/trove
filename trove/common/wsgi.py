@@ -325,6 +325,7 @@ class Controller(object):
             exception.DatabaseAlreadyExists,
             exception.UserAlreadyExists,
             exception.LocalStorageNotSpecified,
+            exception.BackupNotCompleteError,
         ],
         webob.exc.HTTPNotFound: [
             exception.NotFound,
@@ -336,7 +337,6 @@ class Controller(object):
             exception.BackupFileNotFound
         ],
         webob.exc.HTTPConflict: [
-            exception.BackupNotCompleteError,
             exception.RestoreBackupIntegrityError,
         ],
         webob.exc.HTTPRequestEntityTooLarge: [

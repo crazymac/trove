@@ -274,6 +274,10 @@ class DBBackup(DatabaseModelBase):
         return self.state in BackupState.RUNNING_STATES
 
     @property
+    def is_failed(self):
+        return self.state == BackupState.FAILED
+
+    @property
     def is_done(self):
         return self.state in BackupState.END_STATES
 
