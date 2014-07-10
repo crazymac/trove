@@ -47,6 +47,15 @@ class BackupState(object):
 class Backup(object):
 
     @classmethod
+    def validate_can_create_incremental_backups(cls, instance, parent):
+        if not CONF.get(
+                'backup_incremental_strategy').get(
+                parent.backup_type, None):
+            raise exception.DatastoreOperationNotSupported(
+                operation='incremental backup-create',
+                datastore=instance.datastore.name)
+
+    @classmethod
     def validate_parent_backup_is_in_appropriate_state(cls, parent_backup):
         if parent_backup.is_failed:
             raise exception.ParentBackupFailedError(
@@ -96,6 +105,8 @@ class Backup(object):
                 _parent = cls.get_by_id(context, parent_id)
                 cls.validate_parent_backup_is_in_appropriate_state(
                     _parent)
+                cls.validate_can_create_incremental_backups(
+                    instance_model, _parent)
                 parent = {
                     'location': _parent.location,
                     'checksum': _parent.checksum,

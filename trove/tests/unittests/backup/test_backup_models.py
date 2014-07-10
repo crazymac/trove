@@ -87,8 +87,10 @@ class BackupCreateTest(testtools.TestCase):
 
     def test_create_incremental(self):
         instance = MagicMock()
+        instance.datastore_version.manager = 'mysql'
         parent = MagicMock(spec=models.DBBackup)
         parent.state = models.BackupState.NEW,
+        parent.backup_type = 'InnoBackupEx'
         parent.is_failed = False
         with patch.object(instance_models.BuiltInstance, 'load',
                           return_value=instance):
@@ -115,7 +117,8 @@ class BackupCreateTest(testtools.TestCase):
 
                         self.created = True
 
-                        db_record = models.DBBackup.find_by(id=incremental.id)
+                        db_record = models.DBBackup.find_by(
+                            id=incremental.id)
                         self.assertEqual(incremental.id,
                                          db_record['id'])
                         self.assertEqual(BACKUP_NAME,
@@ -191,6 +194,45 @@ class BackupCreateTest(testtools.TestCase):
                                   models.Backup.create,
                                   self.context, self.instance_id,
                                   BACKUP_NAME, BACKUP_DESC)
+
+    def test_create_incremental_backup_datastore_operation_not_supported(self):
+        backup = models.DBBackup(
+            name="BCKP",
+            description="BCKP",
+            tenant_id="BCKP",
+            state=models.BackupState.COMPLETED,
+            instance_id="UUID",
+            parent_id=None,
+            datastore_version_id="1",
+            deleted=False)
+        backup.id = "UUID"
+        backup.location = 'http://xxx/z_CLOUD/12e48.xbstream.gz'
+        backup.size = 2.0
+        backup.backup_type = "MySQLDump"
+
+        instance = MagicMock()
+        instance.datastore_version.manager = 'mysql'
+        with patch.object(instance_models.BuiltInstance, 'load',
+                          return_value=instance):
+            instance.validate_can_perform_action = MagicMock(
+                return_value=None)
+            with patch.object(models.Backup, 'validate_can_perform_action',
+                              return_value=None):
+                with patch.object(models.Backup, 'verify_swift_auth_token',
+                                  return_value=None):
+                    with patch.object(models.CONF, 'get',
+                                      return_value={
+                                          'backup_strategy': 'MySQLDump',
+                                          'backup_incremental_strategy': {}
+                                      }):
+                        with patch.object(models.Backup, 'get_by_id',
+                                          return_value=backup):
+                            self.assertRaises(
+                                exception.DatastoreOperationNotSupported,
+                                models.Backup.create,
+                                self.context, self.instance_id,
+                                BACKUP_NAME, BACKUP_DESC,
+                                parent_id=backup.id)
 
 
 class BackupDeleteTest(testtools.TestCase):
