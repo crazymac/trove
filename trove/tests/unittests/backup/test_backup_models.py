@@ -88,6 +88,8 @@ class BackupCreateTest(testtools.TestCase):
     def test_create_incremental(self):
         instance = MagicMock()
         parent = MagicMock(spec=models.DBBackup)
+        parent.state = models.BackupState.NEW,
+        parent.is_failed = False
         with patch.object(instance_models.BuiltInstance, 'load',
                           return_value=instance):
             instance.validate_can_perform_action = MagicMock(

@@ -47,6 +47,12 @@ class BackupState(object):
 class Backup(object):
 
     @classmethod
+    def validate_parent_backup_is_in_appropriate_state(cls, parent_backup):
+        if parent_backup.is_failed:
+            raise exception.ParentBackupFailedError(
+                backup_id=parent_backup.id)
+
+    @classmethod
     def validate_can_perform_action(cls, instance, operation):
         """
         Raises exception if backup strategy is not supported
@@ -88,6 +94,8 @@ class Backup(object):
                 # Look up the parent info or fail early if not found or if
                 # the user does not have access to the parent.
                 _parent = cls.get_by_id(context, parent_id)
+                cls.validate_parent_backup_is_in_appropriate_state(
+                    _parent)
                 parent = {
                     'location': _parent.location,
                     'checksum': _parent.checksum,

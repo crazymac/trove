@@ -359,6 +359,11 @@ class BackupNotCompleteError(TroveError):
                 "not completed. Actual state: %(state)s")
 
 
+class ParentBackupFailedError(TroveError):
+
+    message = _("Parent backup: %(backup_id)s is in FAILED state.")
+
+
 class BackupFileNotFound(NotFound):
     message = _("Backup file in %(location)s was not found in the object "
                 "storage.")

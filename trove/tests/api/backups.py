@@ -515,3 +515,31 @@ class TestFakeCreateFailedBackup(object):
                       RestoreUsingBackup._restore, self.backup.id)
         assert_equal(400, instance_info.dbaas.last_http_code)
         instance_info.dbaas.backups.delete(self.backup.id)
+
+    @test(depends_on=[test_restore_from_failed_backup])
+    def test_create_incrementail_backup_with_failed_parent(self):
+        if not CONFIG.fake_mode:
+            raise SkipTest("Only fake mode supported")
+
+        self._create_and_verify()
+
+        backup = instance_info.dbaas.backups.create(
+            BACKUP_NAME, self.instance_id, BACKUP_DESC)
+
+        WaitForBackupCreateToFinish._verify_backup_fits_to_states(
+            backup.id)
+
+        self._patch_backup(backup.id, "FAILED")
+
+        backup = instance_info.dbaas.backups.get(backup.id)
+        assert_equal(backup.status, "FAILED")
+
+        assert_raises(exceptions.BadRequest,
+                      instance_info.dbaas.backups.create,
+                      "should-be-failed-incremental-backup",
+                      backup.instance_id,
+                      parent_id=backup.id)
+        assert_equal(400, instance_info.dbaas.last_http_code)
+
+        DeleteRestoreInstance._delete(backup.instance_id)
+        instance_info.dbaas.backups.delete(backup.id)

@@ -326,6 +326,7 @@ class Controller(object):
             exception.UserAlreadyExists,
             exception.LocalStorageNotSpecified,
             exception.BackupNotCompleteError,
+            exception.ParentBackupFailedError,
         ],
         webob.exc.HTTPNotFound: [
             exception.NotFound,
