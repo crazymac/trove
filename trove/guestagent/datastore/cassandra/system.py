@@ -12,10 +12,10 @@
 #    WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
 #    License for the specific language governing permissions and limitations
 #    under the License.
-
+import yaml
 from trove.common import cfg
 from trove.openstack.common import log as logging
-
+from trove.openstack.common.gettextutils import _
 LOG = logging.getLogger(__name__)
 CONF = cfg.CONF
 
@@ -32,7 +32,10 @@ DISABLE_CASSANDRA_ON_BOOT = "sudo update-rc.d cassandra disable"
 START_CASSANDRA = "sudo service cassandra start"
 STOP_CASSANDRA = "sudo service cassandra stop"
 
-CASSANDRA_STATUS = """echo "use system;" > /tmp/check; cqlsh -f /tmp/check"""
+CQL_TRANSPORT_STATUS = (
+    'echo "use system;" >/tmp/check; cqlsh -f /tmp/check')
+
+THRIFT_TRANSPORT_STATUS = "nodetool statusthrift"
 
 CASSANDRA_KILL = "sudo killall java  || true"
 SERVICE_STOP_TIMEOUT = 60

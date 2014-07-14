@@ -92,7 +92,7 @@ class Manager(periodic_task.PeriodicTasks):
                 device.mount(mount_point)
                 LOG.debug("Mounting new volume.")
 
-            LOG.debug("Restarting database after changes.")
+            LOG.debug("Starting database after changes.")
             self.app.start_db()
 
         self.appStatus.end_install_or_restart()

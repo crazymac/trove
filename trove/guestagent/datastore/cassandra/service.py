@@ -35,6 +35,8 @@ packager = pkg.Package()
 class CassandraApp(object):
     """Prepares DBaaS on a Guest container."""
 
+    cassandra_conf = None
+
     def __init__(self, status):
         """By default login with root no password for initial setup."""
         self.state_change_wait_time = CONF.state_change_wait_time
@@ -66,18 +68,67 @@ class CassandraApp(object):
             LOG.error(_("Error while initiating storage structure."))
             LOG.error(e)
 
+    def read(self):
+        LOG.info(_("Opening cassandra.yaml"))
+        with open(system.CASSANDRA_CONF, 'r') as config:
+            LOG.info(_("Preparing YAML object from cassandra.yaml"))
+            yamled = yaml.load(config.read())
+        return yamled
+
+    def get_enabled_transport_services(self):
+        conf = self.read_conf()
+        thrift_enabled = conf.get('start_rpc')
+        LOG.info(_("Thrift enabled: %s") % thrift_enabled)
+
+        cql_enabled = conf.get('start_native_transport')
+        LOG.info(_("CQL enabled: %s") % cql_enabled)
+        return thrift_enabled, cql_enabled
+
+    def _verify_cassandra_started(self):
+        thrift, cql = self.get_enabled_transport_services()
+        cql_running, thrift_running = False, False
+
+        if cql:
+            cql_out, cql_err = utils.execute_with_timeout(
+                system.CQL_TRANSPORT_STATUS, shell=True,
+                check_exit_code=[1, 0], timeout=100)
+            cql_running = True if not cql_err else False
+        if thrift:
+            thrift_out, thrift_err = utils.execute_with_timeout(
+                system.THRIFT_TRANSPORT_STATUS, shell=True,
+                check_exit_code=[1, 0], timeout=100)
+            thrift_running = True if not thrift_err else False
+
+        # possibly previous execs were finished with code 1,
+        # that's why guest should verify that Cassandra
+        # actually starting in a background -
+        # guest should check if Cassandra transports
+        # were enabled and started or at least starting
+
+        services_were_started = (
+            (cql_running and cql) or (thrift_running and thrift))
+
+        return services_were_started
+
     def start_db(self, update_db=False):
+        self.status.set_status(
+            rd_instance.ServiceStatuses.BUILDING)
         self._enable_db_on_boot()
         try:
             utils.execute_with_timeout(system.START_CASSANDRA,
                                        shell=True)
-        except exception.ProcessExecutionError:
-            pass
+            utils.poll_until(
+                self._verify_cassandra_started,
+                time_out=system.INSTALL_TIMEOUT,
+                sleep_time=5)
+
+        except exception.ProcessExecutionError as ex:
+            LOG.debug(str(ex))
 
         if not (self.status.
                 wait_for_real_status_to_change_to(
                 rd_instance.ServiceStatuses.RUNNING,
-                self.state_change_wait_time,
+                system.INSTALL_TIMEOUT,
                 update_db)):
             try:
                 utils.execute_with_timeout(system.CASSANDRA_KILL,
@@ -128,14 +179,12 @@ class CassandraApp(object):
                                    system.CASSANDRA_CONF)
         LOG.info(_('Overriding old config'))
 
-    def read_conf(self):
+    def read_conf(self, reload_conf=False):
         """Returns cassandra.yaml in dict structure."""
+        if not self.cassandra_conf or reload_conf:
+            self.cassandra_conf = self.read()
 
-        LOG.info(_("Opening cassandra.yaml"))
-        with open(system.CASSANDRA_CONF, 'r') as config:
-            LOG.info(_("Preparing YAML object from cassandra.yaml"))
-            yamled = yaml.load(config.read())
-        return yamled
+        return self.cassandra_conf
 
     def update_config_with_single(self, key, value):
         """Updates single key:value in 'cassandra.yaml'."""
@@ -197,8 +246,8 @@ class CassandraAppStatus(service.BaseDbStatus):
         try:
             # If status check would be successful,
             # bot stdin and stdout would contain nothing
-            out, err = utils.execute_with_timeout(system.CASSANDRA_STATUS,
-                                                  shell=True)
+            out, err = utils.execute_with_timeout(
+                system.CQL_TRANSPORT_STATUS, shell=True)
             if "Connection error. Could not connect to" not in err:
                 return rd_instance.ServiceStatuses.RUNNING
             else:
