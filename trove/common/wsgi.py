@@ -320,6 +320,12 @@ class Controller(object):
         webob.exc.HTTPForbidden: [
             exception.ReplicaSourceDeleteForbidden,
             exception.BackupTooLarge,
+            exception.ClusterNumInstancesNotSupported,
+            exception.ClusterFlavorsNotEqual,
+            exception.ClusterVolumeSizeRequired,
+            exception.ClusterVolumeSizesNotEqual,
+            exception.CassandraSeedNodeTypeRequired,
+            exception.CassandraClusterInvalidClusterInstanceRolesRatio,
         ],
         webob.exc.HTTPBadRequest: [
             exception.InvalidModelError,

@@ -585,6 +585,41 @@ cassandra_opts = [
                help='Namespace to load restore strategies from.',
                deprecated_name='restore_namespace',
                deprecated_group='DEFAULT'),
+    cfg.IntOpt("initial_cluster_data_to_seed_nodes_ratio", default=2,
+               help="Ratio that describes how many seed nodes should initial"
+                    "cluster contain with respect to number of data nodes."),
+    cfg.IntOpt('cluster_size', default=3,
+               help="Limits (lower limit) number "
+                    "of instances per cluster provisioning"),
+    cfg.BoolOpt('cluster_support', default=True,
+                help='Enable clusters to be created and managed.'),
+    cfg.StrOpt('api_strategy',
+               default='trove.common.strategies.cassandra.api.'
+                       'CassandraAPIStrategy',
+               help='Class that implements datastore-specific API logic.'),
+    cfg.StrOpt('taskmanager_strategy',
+               default='trove.common.strategies.cassandra.taskmanager.'
+                       'CassandraTaskManagerStrategy',
+               help='Class that implements datastore-specific task manager '
+                    'logic.'),
+    cfg.StrOpt('guestagent_strategy',
+               default='trove.common.strategies.cassandra.guestagent.'
+                       'CassandraGuestAgentStrategy',
+               help='Class that implements datastore-specific Guest Agent API '
+                    'logic.'),
+    cfg.IntOpt('num_tokens_per_instance', default=256,
+               help="Sets up vnodes per cluster instance."),
+    cfg.StrOpt('cluster_partitioner',
+               choices=("org.apache.cassandra.dht.Murmur3Partitioner",
+                        "RandomPartitioner"),
+               default="org.apache.cassandra.dht.Murmur3Partitioner",
+               help="Determines how data is distributed across "
+                    "the nodes in the cluster."),
+    cfg.StrOpt('endpoint_snitch_strategy',
+               choices=("SimpleSnitch", "GossipingPropertyFileSnitch"),
+               default="GossipingPropertyFileSnitch",
+               help="Determines which data centers and racks are "
+                    "written to and read from.")
 ]
 
 # Couchbase

@@ -509,3 +509,12 @@ class BackupTooLarge(TroveError):
     message = _("Backup is too large for given flavor or volume. "
                 "Backup size: %(backup_size)s GBs. "
                 "Available size: %(disk_size)s GBs.")
+
+
+class CassandraClusterInvalidClusterInstanceRolesRatio(TroveError):
+    message = _("Invalid Cassandra cluster instance roles ratio."
+                "Expected ratio %(ratio)s data nodes per seed node.")
+
+
+class CassandraSeedNodeTypeRequired(TroveError):
+    message = _("Cluster should contain atleast one seed node.")

@@ -65,6 +65,10 @@ class ClusterTasks(object):
     DELETING = ClusterTask(0x03, 'DELETING', 'Deleting the cluster.')
     ADDING_SHARD = ClusterTask(
         0x04, 'ADDING_SHARD', 'Adding a shard to the cluster.')
+    ADDING_DATA_NODE = ClusterTask(
+        0x05, 'ADDING_DATA_NODE', 'Adding a data node to the cluster.')
+    ADDING_SEED_NODE = ClusterTask(
+        0x06, 'ADDING_SEED_NODE', 'Adding a seed node to the cluster.')
 
 # Dissuade further additions at run-time.
 ClusterTask.__init__ = None
