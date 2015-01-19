@@ -16,6 +16,7 @@
 import proboscis
 from trove.tests.api import backups
 from trove.tests.api import configurations
+from trove.tests.api import clustering
 from trove.tests.api import databases
 from trove.tests.api import datastores
 from trove.tests.api import flavors
@@ -93,3 +94,11 @@ datastore_group = [
 ]
 proboscis.register(groups=["cassandra", "couchbase", "mongodb", "postgresql"],
                    depends_on_groups=datastore_group)
+
+# Clustering tests
+cassandra_clustering_group = [
+    GROUP_SERVICES_INITIALIZE,
+    clustering.cassandra_group,
+]
+proboscis.register(groups=["cassandra_clustering"],
+                   depends_on_groups=cassandra_clustering_group)

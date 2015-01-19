@@ -12,6 +12,7 @@
 #    WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
 #    License for the specific language governing permissions and limitations
 #    under the License.
+
 import mock
 import uuid
 from testtools import TestCase
@@ -22,14 +23,18 @@ from trove.common import remote
 from trove.common import instance
 from trove.common.strategies import cassandra
 from trove.common.strategies.cassandra import api
+from trove.common.strategies.cassandra import (
+    taskmanager as taskmanager_strategy)
 from trove.cluster import service
 from trove.cluster import models
 from trove.cluster import tasks as cluster_tasks
 from trove.datastore import models as datastore_models
 from trove.instance import models as instance_models
 from trove.instance import tasks
-from trove.tests.unittests.util import util
+from trove.taskmanager import api as task_api
+from trove.tests.fakes import guestagent
 from trove.tests.fakes import nova
+from trove.tests.unittests.util import util
 
 
 class CassandraClusteringBase(TestCase):
@@ -256,6 +261,166 @@ class CassandraClusteringBase(TestCase):
             self.context.tenant,
             kwargs.get('cluster_id'))
         return extended_datanode
+
+    def _get_cluster_instances(self, cluster):
+        cluster_instances = [
+            db_info
+            for db_info in
+            instance_models.DBInstance.find_all(
+                cluster_id=cluster.id)
+        ]
+        return cluster_instances
+
+    def _get_cluster_instance_service_statuses(self, cluster):
+        instances = self._get_cluster_instances(cluster)
+        cluster_instance_service_statuses = []
+        for cluster_instance in instances:
+            cluster_instance_service_statuses.append(
+                instance_models.InstanceServiceStatus.get_by(
+                    instance_id=cluster_instance.id)
+            )
+        return cluster_instance_service_statuses
+
+    def _set_cluster_instance_statuses_to_active(self, cluster, statuses=[]):
+        statuses = (self._get_cluster_instance_service_statuses(cluster)
+                    if not statuses else statuses)
+        for status in statuses:
+            status.set_status(instance.ServiceStatuses.RUNNING)
+            status.save()
+
+    def _get_cluster(self, cluster_id):
+        cluster = api.CassandraCluster.load(
+            self.context, cluster_id)
+        return cluster
+
+    def _setup_cluster(self):
+        instances = self.valid_instance
+        cluster = api.CassandraCluster.create(
+            self.context,
+            self.cluster_name,
+            self.datastore,
+            self.version, instances)
+        cluster_instances = self._get_cluster_instances(
+            cluster)
+        cluster_instance_service_statuses = (
+            self._get_cluster_instance_service_statuses(
+                cluster)
+        )
+        return (
+            cluster,
+            cluster_instances,
+            cluster_instance_service_statuses
+        )
+
+    class fake_server(object):
+        def __init__(self):
+            self.status = "ACTIVE"
+            self.addresses = {"addr": "127.0.0.1"}
+
+    def setup_cluster(self):
+        task_api.load = mock.MagicMock()
+        instance_models.load_server = mock.MagicMock(
+            return_value=None
+        )
+        instance_models.Instance.get_visible_ip_addresses = (
+            mock.MagicMock(return_value=["127.0.0.1"]))
+        cluster, instances, statuses = self._setup_cluster()
+        self.assertIsNotNone(cluster)
+        self.assertIsNotNone(instances)
+        self.assertIsNotNone(statuses)
+        strategy = (
+            taskmanager_strategy.
+            CassandraClusterTasks(
+                self.context, cluster.db_info))
+        return strategy, cluster, instances, statuses
+
+    def _raise(self, exception_class):
+
+        def do_raise(*args, **kwargs):
+            raise exception_class()
+
+        return do_raise
+
+    def _extend_cluster_with_node(self, action, node_type,
+                                  wrapper=None,
+                                  exception_to_raise=None,
+                                  exception_to_handle=None):
+        (strategy, cluster,
+         instances, statuses) = self.setup_cluster()
+        self._set_cluster_instance_statuses_to_active(
+            cluster, statuses=statuses)
+        with mock.patch.object(instance_models, 'load_server',
+                               return_value=self.fake_server()):
+            with mock.patch.object(
+                    taskmanager_strategy.CassandraClusterTasks,
+                    '_all_servers_ready'):
+                with mock.patch.object(
+                        taskmanager_strategy.CassandraClusterTasks,
+                        '_all_instances_ready'):
+                    with mock.patch.object(
+                            taskmanager_strategy.CassandraClusteringWorkflow,
+                            'get_ip', return_value="1.1.1.1"):
+                        with mock.patch.object(
+                                taskmanager_strategy.CassandraClusterTasks,
+                                'get_guest',
+                                return_value=guestagent.FakeGuest(
+                                instances[0].id)):
+                            strategy.create_cluster(
+                                self.context, cluster.id)
+                            self.controller.action(
+                                self.fake_request(self.context), {action: {}},
+                                self.context.tenant, cluster.id)
+                            self._add_node_action(cluster, strategy, node_type,
+                                                  wrapper=wrapper,
+                                                  exception_to_raise=
+                                                  exception_to_raise,
+                                                  exception_to_handle=
+                                                  exception_to_handle)
+
+    def wrapper(self, action_method, context, cluster_id, node_id,
+                exception_to_handle=None,
+                exception_to_raise=None):
+        def wrap():
+
+            if exception_to_handle:
+                with mock.patch.object(
+                        taskmanager_strategy.CassandraClusteringWorkflow,
+                        "_check_cluster_nodes_are_active",
+                        side_effect=self._raise(exception_to_raise)):
+                    self.assertRaises(exception_to_handle,
+                                      action_method,
+                                      context,
+                                      cluster_id,
+                                      node_id)
+            else:
+                action_method(context, cluster_id, node_id)
+        return wrap
+
+    def _add_node_action(self, cluster, strategy, node_type,
+                         wrapper=None,
+                         exception_to_raise=None,
+                         exception_to_handle=None):
+        with mock.patch.object(instance_models,
+                               'load_simple_instance_server_status'):
+            cluster_instances = (
+                instance_models.Instances.load_all_by_cluster_id(
+                    self.context, cluster.id, load_servers=False))
+            new_node = [node for node in cluster_instances
+                        if node.type == node_type
+                        and "node-4" in node.name].pop()
+            self._set_cluster_instance_statuses_to_active(cluster)
+            action = getattr(strategy, "add_%s_to_cluster" % node_type)
+            if wrapper and callable(wrapper):
+                examine = wrapper(action, self.context,
+                                  cluster.id,
+                                  new_node.id,
+                                  exception_to_raise=
+                                  exception_to_raise,
+                                  exception_to_handle=
+                                  exception_to_handle)
+                examine()
+            else:
+                action(self.context, cluster.id, new_node.id)
 
     def tearDown(self):
         self.datastore.delete()

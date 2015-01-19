@@ -79,7 +79,10 @@ class Manager(periodic_task.PeriodicTasks):
             if config_contents:
                 LOG.debug("Processing configuration.")
                 self.app.write_config(config_contents)
-                self.app.make_host_reachable()
+                if cluster_config:
+                    inject_files = cluster_config.get("inject_files")
+                    self.app.inject_files(inject_files)
+                self.app.make_host_reachable(include_seed=True)
 
             if device_path:
                 device = volume.VolumeDevice(device_path)
@@ -183,9 +186,8 @@ class Manager(periodic_task.PeriodicTasks):
         LOG.debug("Resized the filesystem at %s." % mount_point)
 
     def update_overrides(self, context, overrides, remove=False):
-        LOG.debug("Updating overrides.")
-        raise exception.DatastoreOperationNotSupported(
-            operation='update_overrides', datastore=MANAGER)
+        LOG.debug("Updating overrides (%s)." % overrides)
+        self.app.update_overrides(overrides, remove=remove)
 
     def apply_overrides(self, context, overrides):
         LOG.debug("Applying overrides.")
@@ -210,3 +212,33 @@ class Manager(periodic_task.PeriodicTasks):
         LOG.debug("Demoting replication master.")
         raise exception.DatastoreOperationNotSupported(
             operation='demote_replication_master', datastore=MANAGER)
+
+    def cluster_complete(self, context):
+        # Now that cluster creation is complete, start status checks
+        LOG.debug("Cluster creation complete, starting status checks.")
+        self.appStatus.set_status(
+            self.appStatus._get_actual_db_status())
+
+    def verify_cluster_is_running(self, context, cluster_ips):
+        LOG.debug("Verifying cluster creation complete.")
+        return self.app.verify_cluster_is_running(cluster_ips)
+
+    def update_seed_provider(self, context, seed_ips):
+        LOG.debug("Setting seed provider.")
+        self.app.update_conf_with_group({'seed': seed_ips})
+
+    def setup_tokens(self, context):
+        LOG.debug("Setting tokens.")
+        return self.app.setup_tokens()
+
+    def get_cluster_config(self, context):
+        LOG.debug("Retrieving cluster config.")
+        return self.app.read_conf(raw=True)
+
+    def drop_system_keyspace(self, context):
+        LOG.debug("Dropping system keyspace.")
+        return self.app.drop_system_keyspace()
+
+    def reset_local_schema(self, context):
+        LOG.debug("Reseting local shema.")
+        return self.app.reset_local_schema()

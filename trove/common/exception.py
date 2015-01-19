@@ -491,6 +491,12 @@ class ClusterNumInstancesNotSupported(TroveError):
                 "be %(num_instances)s.")
 
 
+class ClusterInstanceError(TroveError):
+    message = _("Unable to provision cluster due to inappropriate "
+                "instance status. Instance id: "
+                "%(instance_id)s. Status: %(status)s.")
+
+
 class ClusterInstanceOperationNotSupported(TroveError):
     message = _("Operation not supported for instances that are part of a "
                 "cluster.")
@@ -518,3 +524,9 @@ class CassandraClusterInvalidClusterInstanceRolesRatio(TroveError):
 
 class CassandraSeedNodeTypeRequired(TroveError):
     message = _("Cluster should contain atleast one seed node.")
+
+
+class ClusterActionError(TroveError):
+    message = _("Error during processing cluster action: "
+                "%(action)s for cluster: %(cluster_id)s "
+                "based on datastore: %(datastore)s.")

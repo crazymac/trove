@@ -30,8 +30,18 @@ DISABLE_CASSANDRA_ON_BOOT = "sudo update-rc.d cassandra disable"
 START_CASSANDRA = "sudo service cassandra start"
 STOP_CASSANDRA = "sudo service cassandra stop"
 
+RUN_CQL_QUERY = """echo "%s" > /tmp/cql_query; cqlsh -f /tmp/cql_query"""
+
 CASSANDRA_STATUS = """echo "use system;" > /tmp/check; cqlsh -f /tmp/check"""
 
 CASSANDRA_KILL = "sudo killall java  || true"
 SERVICE_STOP_TIMEOUT = 60
 INSTALL_TIMEOUT = 10000
+
+GET_TOKENS_CMD = ("nodetool info -T | grep ^Token | "
+                  "awk '{ print $3 }' | tr \\n ,")
+
+NODETOOL_STATUS = str("nodetool status")
+IP_REGEX = str("""grep -E -o "([0-9]{1,3}[\.]){3}[0-9]{1,3}" """)
+PIPE = str(" | ")
+CLUSTER_STATUS = NODETOOL_STATUS + PIPE + IP_REGEX

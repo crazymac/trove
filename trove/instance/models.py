@@ -603,10 +603,19 @@ class BaseInstance(SimpleInstance):
             setattr(self.db_info, key, values[key])
         self.db_info.save()
 
+    def _set_servicestatus(self, status):
+        _instance = InstanceServiceStatus.find_by(
+            instance_id=self.id)
+        _instance.set_status(status)
+        _instance.save()
+
     def set_servicestatus_deleted(self):
-        del_instance = InstanceServiceStatus.find_by(instance_id=self.id)
-        del_instance.set_status(tr_instance.ServiceStatuses.DELETED)
-        del_instance.save()
+        self._set_servicestatus(
+            tr_instance.ServiceStatuses.DELETED)
+
+    def set_servicestatus_new(self):
+        self._set_servicestatus(
+            tr_instance.ServiceStatuses.NEW)
 
     @property
     def volume_client(self):

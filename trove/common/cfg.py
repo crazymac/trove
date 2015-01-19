@@ -619,7 +619,19 @@ cassandra_opts = [
                choices=("SimpleSnitch", "GossipingPropertyFileSnitch"),
                default="GossipingPropertyFileSnitch",
                help="Determines which data centers and racks are "
-                    "written to and read from.")
+                    "written to and read from."),
+    cfg.IntOpt('cluster_status_verification_timeout', default=1000,
+               help="This option is used as RPC call timeout for "
+                    "cluster status verification."),
+    cfg.IntOpt('token_modification_timeout', default=1000,
+               help="This option is used as RPC call timeout for "
+                    "setting up tokens on cluster node."),
+    cfg.IntOpt('cluster_config_retriever_timeout', default=1000,
+               help="This option is used as RPC call timeout for "
+                    "retrieving cluster config from cluster node."),
+    cfg.IntOpt('node_local_schema_resetter_timeout', default=1000,
+               help="This option is used as RPC call timeout for "
+                    "resetting data schema on cluster node."),
 ]
 
 # Couchbase

@@ -1591,7 +1591,7 @@ class CassandraDBAppTest(testtools.TestCase):
         configuration = 'this is my configuration'
 
         self.assertRaises(ProcessExecutionError,
-                          self.cassandra.write_config,
+                          self.cassandra._write_file,
                           config_contents=configuration,
                           execute_function=execute_with_timeout,
                           mkstemp_function=mock_mkstemp,
@@ -1616,13 +1616,17 @@ class CassandraDBAppTest(testtools.TestCase):
 
         mock_execute = MagicMock(return_value=('', ''))
 
-        self.cassandra.write_config(configuration,
-                                    execute_function=mock_execute,
-                                    mkstemp_function=mock_mkstemp)
+        self.cassandra._write_file(configuration,
+                                   execute_function=mock_execute,
+                                   mkstemp_function=mock_mkstemp)
 
-        mock_execute.assert_called_with("sudo", "mv",
-                                        temp_config_name,
-                                        cass_system.CASSANDRA_CONF)
+        mv, chmod = mock_execute.call_args_list
+
+        mv.assert_called_with("sudo", "mv",
+                              temp_config_name,
+                              cass_system.CASSANDRA_CONF)
+        chmod.assert_called_with("sudo", "chmod", "644",
+                                 cass_system.CASSANDRA_CONF)
         mock_mkstemp.assert_called_once()
 
         with open(temp_config_name, 'r') as config_file:

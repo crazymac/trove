@@ -89,6 +89,23 @@ def datastore_init():
                               name=CONFIG.dbaas_datastore_name_no_versions,
                               default_version_id=None)
 
+    # Cassandra
+    cassandra_datastore_id = "e2598839-9d04-489a-bc7d-3330e2929a3d"
+    cassandra_datastore_version_id = "ae1fdc8d-f1b2-4cce-8511-2034537a6b30"
+    models.DBDatastore.create(id=cassandra_datastore_id,
+                              name="cassandra",
+                              default_version_id=
+                              cassandra_datastore_version_id)
+    models.DBDatastoreVersion.create(
+        id=cassandra_datastore_version_id,
+        datastore_id=cassandra_datastore_id,
+        name="2.1.2",
+        manager="cassandra",
+        packages='test_packages',
+        image_id=utils.generate_uuid(),
+        active=1
+    )
+
     main_dsv = models.DBDatastoreVersion.create(
         id=CONFIG.dbaas_datastore_version_id,
         datastore_id=
@@ -200,6 +217,8 @@ def run_tests(repl):
 def import_tests():
     # F401 unused imports needed for tox tests
     from trove.tests.api import backups  # noqa
+    # 'clustering' runs both clusterin groups: cassandra and mongodb
+    from trove.tests.api import clustering  # noqa
     from trove.tests.api import header  # noqa
     from trove.tests.api import limits  # noqa
     from trove.tests.api import flavors  # noqa

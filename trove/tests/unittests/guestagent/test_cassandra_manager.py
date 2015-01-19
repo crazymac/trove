@@ -138,6 +138,5 @@ class GuestAgentCassandraDBManagerTest(testtools.TestCase):
         mock_status.begin_install.assert_any_call()
         mock_app.install_if_needed.assert_any_call(packages)
         mock_app.init_storage_structure.assert_any_call('/var/lib/cassandra')
-        mock_app.make_host_reachable.assert_any_call()
         mock_app.start_db.assert_any_call()
         mock_app.stop_db.assert_any_call()

@@ -15,7 +15,9 @@
 
 import os
 import tempfile
+import functools
 import yaml
+
 from trove.common import cfg
 from trove.common import utils
 from trove.common import exception
@@ -32,6 +34,21 @@ LOG = logging.getLogger(__name__)
 CONF = cfg.CONF
 
 packager = pkg.Package()
+
+
+def decorate_exec_action(action):
+
+    @functools.wraps(action)
+    def wrapper(self, *args, **kwargs):
+        LOG.debug("Action: %s" % action.__name__)
+        try:
+            return action(self, *args, **kwargs)
+        except (exception.ProcessExecutionError, Exception) as e:
+            LOG.exception(_("Error during running action %(action)s. "
+                            "Exception: %(e)s.") %
+                          {"action": action, "e": e})
+
+    return wrapper
 
 
 class CassandraApp(object):
@@ -118,10 +135,12 @@ class CassandraApp(object):
         packager.pkg_install(packages, None, system.INSTALL_TIMEOUT)
         LOG.debug("Finished installing Cassandra server")
 
-    def write_config(self, config_contents,
-                     execute_function=utils.execute_with_timeout,
-                     mkstemp_function=tempfile.mkstemp,
-                     unlink_function=os.unlink):
+    def _write_file(self, config_contents,
+                    source_path=system.CASSANDRA_CONF,
+                    execute_function=utils.execute_with_timeout,
+                    mkstemp_function=tempfile.mkstemp,
+                    unlink_function=os.unlink,
+                    access_mode="644"):
 
         # first securely create a temp file. mkstemp() will set
         # os.O_EXCL on the open() call, and we get a file with
@@ -135,7 +154,8 @@ class CassandraApp(object):
         # we move the file.
         try:
             os.write(conf_fd, config_contents)
-            execute_function("sudo", "mv", conf_path, system.CASSANDRA_CONF)
+            execute_function("sudo", "mv", conf_path, source_path)
+            execute_function("sudo", "chmod", access_mode, source_path)
         except Exception:
             LOG.exception(
                 _("Exception generating Cassandra configuration %s.") %
@@ -147,14 +167,19 @@ class CassandraApp(object):
 
         LOG.info(_('Wrote new Cassandra configuration.'))
 
-    def read_conf(self):
+    def write_config(self, config_contents):
+        self._write_file(
+            config_contents,
+            source_path=system.CASSANDRA_CONF)
+
+    def read_conf(self, raw=False):
         """Returns cassandra.yaml in dict structure."""
 
         LOG.debug("Opening cassandra.yaml.")
         with open(system.CASSANDRA_CONF, 'r') as config:
             LOG.debug("Preparing YAML object from cassandra.yaml.")
-            yamled = yaml.load(config.read())
-        return yamled
+            data = config.read()
+        return data if raw else yaml.load(data)
 
     def update_config_with_single(self, key, value):
         """Updates single key:value in 'cassandra.yaml'."""
@@ -163,8 +188,8 @@ class CassandraApp(object):
         yamled.update({key: value})
         LOG.debug("Updating cassandra.yaml with %(key)s: %(value)s."
                   % {'key': key, 'value': value})
-        dump = yaml.dump(yamled, default_flow_style=False)
-        LOG.debug("Dumping YAML to stream.")
+        dump = yaml.safe_dump(yamled, default_flow_style=False)
+        LOG.debug("Dumping YAML to stream. Dump: %s." % dump)
         self.write_config(dump)
 
     def update_conf_with_group(self, group):
@@ -180,17 +205,20 @@ class CassandraApp(object):
                 yamled.update({key: value})
             LOG.debug("Updating cassandra.yaml with %(key)s: %(value)s."
                       % {'key': key, 'value': value})
-        dump = yaml.dump(yamled, default_flow_style=False)
+        dump = yaml.safe_dump(yamled, default_flow_style=False)
         LOG.debug("Dumping YAML to stream")
         self.write_config(dump)
 
-    def make_host_reachable(self):
+    def make_host_reachable(self, include_seed=False):
         updates = {
             'rpc_address': "0.0.0.0",
             'broadcast_rpc_address': operating_system.get_ip_address(),
             'listen_address': operating_system.get_ip_address(),
-            'seed': operating_system.get_ip_address()
         }
+        if include_seed:
+            updates.update(
+                {'seed': operating_system.get_ip_address()}
+            )
         self.update_conf_with_group(updates)
 
     def start_db_with_conf_changes(self, config_contents):
@@ -210,10 +238,88 @@ class CassandraApp(object):
         LOG.debug("Resetting configuration")
         self.write_config(config_contents)
 
+    def inject_files(self, path_and_content_dict_list):
+        if path_and_content_dict_list:
+            for item in path_and_content_dict_list:
+                LOG.debug("Injection item: %s." % item)
+                for dest_location, content in item.iteritems():
+                    LOG.debug("Location: %s. Content: %s" % (
+                        dest_location, content))
+                    self._write_file(
+                        content,
+                        source_path=dest_location)
+
+    def update_overrides(self, overrides_file, remove=False):
+        """
+        This function will either updates Cassandra,yaml file
+
+        :param overrides:
+        :param remove:
+        :return:
+        """
+
+        if overrides_file:
+            LOG.debug("Updating config file.")
+
+            self.write_config(overrides_file)
+            self.make_host_reachable()
+
+    @decorate_exec_action
+    def setup_tokens(self, *args, **kwargs):
+        tokens, stderr = utils.execute_with_timeout(
+            system.GET_TOKENS_CMD, shell=True,
+            timeout=100)
+        parsed_tokens = ",".join(tokens.split("\n"))
+        LOG.debug("Instance tokens: %s." % parsed_tokens)
+        self.update_config_with_single('initial_token', parsed_tokens)
+        return "OK"
+
+    @decorate_exec_action
+    def verify_cluster_is_running(self, cluster_ips, **kwargs):
+        LOG.debug("IPs that should be visible to this node: %s."
+                  % cluster_ips)
+        local_cluster_ips, stderr = utils.execute_with_timeout(
+            system.CLUSTER_STATUS, shell=True,
+            timeout=1000)
+        local_cluster_ips = local_cluster_ips.split("\n")[:-1]
+        LOG.debug("Visible IPs from this node: %s." % local_cluster_ips)
+        LOG.debug("Comparator %s - %s" % (
+            cluster_ips, local_cluster_ips))
+        LOG.debug("Lists are equal - %s" % set(
+            sorted(local_cluster_ips)) == set(sorted(cluster_ips)))
+        return ("OK" if set(
+            sorted(local_cluster_ips)) == set(sorted(cluster_ips)) else None)
+
+    @decorate_exec_action
+    def save_system_traces(self, *args, **kwargs):
+        utils.execute_with_timeout(
+            "sudo cp -r /var/lib/cassandra/data/system_traces "
+            "/tmp/system_traces", shell=True, timeout=100)
+        return "OK"
+
+    @decorate_exec_action
+    def restore_system_traces(self, *args, **kwargs):
+        utils.execute_with_timeout(
+            "sudo mv /tmp/system_traces "
+            "/var/lib/cassandra/data/system_traces", shell=True, timeout=100)
+        return "OK"
+
+    @decorate_exec_action
+    def drop_system_keyspace(self, *args, **kwargs):
+        utils.execute_with_timeout(
+            "sudo rm -fr /var/lib/cassandra/data/*", timeout=100, shell=True)
+        return "OK"
+
+    @decorate_exec_action
+    def reset_local_schema(self, *args, **kwargs):
+        utils.execute_with_timeout("nodetool resetlocalschema",
+                                   timeout=100, shell=True)
+        return "OK"
+
 
 class CassandraAppStatus(service.BaseDbStatus):
 
-    def _get_actual_db_status(self):
+    def _get_actual_db_status(self, *args, **kwargs):
         try:
             # If status check would be successful,
             # bot stdin and stdout would contain nothing
@@ -223,6 +329,7 @@ class CassandraAppStatus(service.BaseDbStatus):
                 return rd_instance.ServiceStatuses.RUNNING
             else:
                 return rd_instance.ServiceStatuses.SHUTDOWN
-        except (exception.ProcessExecutionError, OSError):
-            LOG.exception(_("Error getting Cassandra status"))
+        except (exception.ProcessExecutionError, OSError) as e:
+            LOG.exception(_("Error getting Cassandra status. "
+                            "Exception: %(e)s.") % {"e": e})
             return rd_instance.ServiceStatuses.SHUTDOWN

@@ -237,7 +237,7 @@ class FakeGuest(object):
         status.status = states[new_status]
         status.save()
 
-    def restart(self):
+    def restart(self, wait_until_active=False):
         # All this does is restart, and shut off the status updates while it
         # does so. So there's actually nothing to do to fake this out except
         # take a nap.
@@ -323,6 +323,9 @@ class FakeGuest(object):
     def apply_overrides(self, overrides):
         self.overrides = overrides
 
+    def cluster_complete(self):
+        pass
+
     def get_replication_snapshot(self, snapshot_info,
                                  replica_source_config=None):
         self.create_backup(snapshot_info)
@@ -342,6 +345,33 @@ class FakeGuest(object):
     def attach_replication_slave(self, snapshot, slave_config):
         pass
 
+    def setup_tokens(self):
+        pass
+
+    def get_cluster_config(self):
+        from trove.common.utils import ENV
+        import yaml
+        conf = ENV.get_template(
+            "cassandra/config.template").render()
+
+        yamled = yaml.load(conf)
+        yamled.update(dict(initial_token="abcd"))
+        conf = yaml.safe_dump(yamled,
+                              default_flow_style=False)
+        return conf
+
+    def update_seed_provider(self, ips):
+        pass
+
+    def verify_cluster_is_running(self, ips):
+        return 'OK'
+
+    def drop_system_keyspace(self):
+        pass
+
+    def reset_local_schema(self):
+        pass
+
 
 def get_or_create(id):
     if id not in DB:
@@ -349,5 +379,5 @@ def get_or_create(id):
     return DB[id]
 
 
-def fake_create_guest_client(context, id):
+def fake_create_guest_client(context, id, datastore_manager=None):
     return get_or_create(id)

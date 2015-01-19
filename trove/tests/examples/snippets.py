@@ -22,6 +22,7 @@ from proboscis import test
 from proboscis import SkipTest
 from proboscis import TestProgram
 from proboscis.asserts import assert_equal
+from proboscis.asserts import assert_not_equal
 from proboscis.asserts import assert_true
 from proboscis.asserts import Check
 
@@ -554,7 +555,7 @@ class Datastores(Example):
             "GET", 200, "OK",
             lambda client: client.datastores.list())
         for result in self.datastores:
-            assert_equal(1, len(result))
+            assert_not_equal(0, len(result))
 
     @test(depends_on=[get_datastores_list])
     def get_datastore_by_id(self):

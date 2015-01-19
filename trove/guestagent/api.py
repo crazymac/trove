@@ -250,10 +250,12 @@ class API(object):
             if server is not None:
                 server.stop()
 
-    def restart(self):
+    def restart(self, wait_until_active=True, timeout=AGENT_HIGH_TIMEOUT):
         """Restart the MySQL server."""
-        LOG.debug("Sending the call to restart MySQL on the Guest.")
-        self._call("restart", AGENT_HIGH_TIMEOUT, self.version_cap)
+        LOG.debug("Sending the %s to restart MySQL on the Guest." % "call"
+                  if wait_until_active else "cast")
+        (self._call("restart", timeout, self.version_cap) if wait_until_active
+         else self._cast("restart", self.version_cap))
 
     def start_db_with_conf_changes(self, config_contents):
         """Start the MySQL server."""
