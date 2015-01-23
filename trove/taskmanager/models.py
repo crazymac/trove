@@ -620,16 +620,10 @@ class FreshInstanceTasks(FreshInstance, NotifyMixin, ConfigurationMixin):
                                               volume_size=volume_size)
         block_device_mapping = volume_info['block_device']
         try:
-            server = self._create_server(flavor_id, image_id, security_groups,
-                                         datastore_manager,
-                                         block_device_mapping,
-                                         availability_zone, nics)
-
-            self.update_db(compute_instance_id=server.id)
-
-            self._verify_compute_instance_is_active(
-                CONF.get(datastore_manager).usage_timeout)
-
+            self._create_server(flavor_id, image_id, security_groups,
+                                datastore_manager,
+                                block_device_mapping,
+                                availability_zone, nics)
         except (nova_exceptions.ClientException, TroveError) as e:
             msg = _("Failed to create server for instance %s") % self.id
             err = inst_models.InstanceTasks.BUILDING_ERROR_SERVER
@@ -739,8 +733,14 @@ class FreshInstanceTasks(FreshInstance, NotifyMixin, ConfigurationMixin):
                        availability_zone, nics):
         files, userdata = self._prepare_file_and_userdata(
             datastore_manager)
+        volume_id = block_device_mapping.values()[0].split(":")[0]
+        LOG.debug("Volume id: %s", volume_id)
         name = self.hostname or self.name
-        bdmap = block_device_mapping
+        bdmap = (block_device_mapping
+                 if not CONF.use_volume_attachment
+                 else None)
+        LOG.debug("Using direct attach: %s",
+                  CONF.use_volume_attachment)
         config_drive = CONF.use_nova_server_config_drive
 
         server = self.nova_client.servers.create(
@@ -748,10 +748,45 @@ class FreshInstanceTasks(FreshInstance, NotifyMixin, ConfigurationMixin):
             security_groups=security_groups, block_device_mapping=bdmap,
             availability_zone=availability_zone, nics=nics,
             config_drive=config_drive)
+
+        LOG.debug("Server info %s", server.__dict__)
+        self.update_db(compute_instance_id=server.id)
+        self._verify_compute_instance_is_active(CONF.usage_timeout)
+
+        self._attach_volume(bdmap, server.id, volume_id)
+
         LOG.debug("Created new compute instance %(server_id)s "
                   "for instance %(id)s" %
                   {'server_id': server.id, 'id': self.id})
         return server
+
+    def _attach_volume(self, bdmap, server_id, volume_id):
+        if not bdmap:
+            try:
+
+                response = self.nova_client.volumes.create_server_volume(
+                    server_id, volume_id,
+                    self.device_path)
+                LOG.debug("Attach response %s", response)
+
+                def volume_in_use():
+                    volume = self.volume_client.volumes.get(volume_id)
+                    return volume.status == 'in-use'
+                utils.poll_until(volume_in_use,
+                                 sleep_time=2,
+                                 time_out=CONF.volume_time_out)
+
+                # reboot is required to let guest operating
+                # system describe mounted devices
+                self.nova_client.servers.reboot(server_id)
+                self._verify_compute_instance_is_active(CONF.usage_timeout)
+
+            except Exception:
+                msg = (_("Error attaching volume %(volume_id)s"
+                         " to server %(server_id)s.")
+                       % dict(volume_id=volume_id, server_id=server_id))
+                LOG.exception(msg)
+                raise TroveError(msg)
 
     def _verify_compute_instance_is_active(self, timeout):
         """
@@ -936,10 +971,41 @@ class BuiltInstanceTasks(BuiltInstance, NotifyMixin, ConfigurationMixin):
                             "Timeout deleting compute server %(server_id)s") %
                           {'instance_id': self.id, 'server_id': server_id})
 
+        self._try_to_delete_volume_explicitly()
+
         self.send_usage_event('delete',
                               deleted_at=timeutils.isotime(deleted_at),
                               server=old_server)
         LOG.debug("End _delete_resources for instance %s" % self.id)
+
+    def _try_to_delete_volume_explicitly(self):
+        """
+        Deletes volume explicitly in case attachment API was used
+        instead of block mapping device on boot.
+        """
+        if CONF.use_volume_attachment:
+            try:
+                old_volume = self.volume_client.volumes.get(
+                    self.volume_id)
+                old_volume.delete()
+            except cinder_exceptions.NotFound:
+                pass
+
+            def _volume_has_gone():
+                try:
+                    self.volume_client.volumes.get(self.db_info.volume_id)
+                    return False
+                except cinder_exceptions.NotFound:
+                    return True
+
+            try:
+                utils.poll_until(_volume_has_gone, sleep_time=2,
+                                 time_out=CONF.server_delete_time_out)
+            except PollTimeOut:
+                LOG.exception(
+                    _("Failed to delete instance %(instance_id)s: "
+                      "Timeout deleting block storage %(volume_id)s") %
+                    {'instance_id': self.id, 'volume_id': self.volume_id})
 
     def server_status_matches(self, expected_status, server=None):
         if not server:

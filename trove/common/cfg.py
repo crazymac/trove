@@ -209,6 +209,11 @@ common_opts = [
                'Taskmanager on instance provision.'),
     cfg.StrOpt('block_device_mapping', default='vdb',
                help='Block device to map onto the created instance.'),
+    cfg.BoolOpt('use_volume_attachment', default=True,
+                help="This option defines how would volume be attached to an "
+                     "instance. If 'True', taskamanger will use Nova API to "
+                     "attach volume, if 'False', Taskmanager will use block "
+                     "device mapping instead."),
     cfg.IntOpt('server_delete_time_out', default=60,
                help='Maximum time (in seconds) to wait for a server delete.'),
     cfg.IntOpt('volume_time_out', default=60,

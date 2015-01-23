@@ -202,6 +202,10 @@ class FreshInstanceTasksTest(testtools.TestCase):
         self.freshinstancetasks._check_compute_instance_is_active = Mock(
             return_value=True)
         self.datastore_manager = 'mysql'
+        self.safe_attach = self.freshinstancetasks._attach_volume
+        self.safe_update_db = self.freshinstancetasks.update_db
+        self.freshinstancetasks._attach_volume = Mock()
+        self.freshinstancetasks.update_db = Mock()
 
     def tearDown(self):
         super(FreshInstanceTasksTest, self).tearDown()
@@ -210,6 +214,8 @@ class FreshInstanceTasksTest(testtools.TestCase):
         InstanceServiceStatus.find_by = self.orig_ISS_find_by
         DBInstance.find_by = self.orig_DBI_find_by
         self.freshinstancetasks._check_compute_instance_is_active = self.orig
+        self.freshinstancetasks._attach_volume = self.safe_attach
+        self.freshinstancetasks.update_db = self.safe_update_db
 
     @patch('trove.taskmanager.models.CONF')
     def test_create_instance_userdata(self, mock_conf):
@@ -227,7 +233,8 @@ class FreshInstanceTasksTest(testtools.TestCase):
         mock_conf.get.side_effect = fake_conf_getter
 
         server = self.freshinstancetasks._create_server(
-            None, None, None, datastore_manager, None, None, None)
+            None, None, None, datastore_manager,
+            {"a": "b:c:d:1"}, None, None)
         self.assertEqual(server.userdata, self.userdata)
 
     def fake_conf_getter(self, *args, **kwargs):
@@ -242,7 +249,8 @@ class FreshInstanceTasksTest(testtools.TestCase):
         mock_conf.get.side_effect = self.fake_conf_getter
         # execute
         server = self.freshinstancetasks._create_server(
-            None, None, None, "mysql", None, None, None)
+            None, None, None, "mysql",
+            {"a": "b:c:d:1"}, None, None)
         # verify
         self.assertTrue('/etc/trove-guestagent.conf' in server.files)
         self.assertEqual(server.files['/etc/trove-guestagent.conf'],
@@ -254,7 +262,7 @@ class FreshInstanceTasksTest(testtools.TestCase):
         # execute
         server = self.freshinstancetasks._create_server(
             None, None, None, 'mysql',
-            None, availability_zone='nova', nics=None)
+            {"a": "b:c:d:1"}, availability_zone='nova', nics=None)
         # verify
         self.assertIsNotNone(server)
 
@@ -263,7 +271,7 @@ class FreshInstanceTasksTest(testtools.TestCase):
         mock_conf.get.side_effect = self.fake_conf_getter
         # execute
         server = self.freshinstancetasks._create_server(
-            None, None, None, 'mysql', None, 'nova', None)
+            None, None, None, 'mysql', {"a": "b:c:d:1"}, 'nova', None)
         # verify
         self.assertIsNotNone(server)
 
@@ -272,7 +280,7 @@ class FreshInstanceTasksTest(testtools.TestCase):
         mock_conf.get.side_effect = self.fake_conf_getter
         # execute
         server = self.freshinstancetasks._create_server(
-            None, None, None, "mysql", None, None, None)
+            None, None, None, "mysql", {"a": "b:c:d:1"}, None, None)
         # verify
         self.assertIsNotNone(server)
 

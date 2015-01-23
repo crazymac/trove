@@ -545,6 +545,7 @@ class FakeVolumes(object):
 
     def create_server_volume(self, server_id, volume_id, device_path):
         volume = self.get(volume_id)
+        volume.set_attachment(server_id)
 
         if volume._current_status != "available":
             raise Exception("Invalid volume status: "
