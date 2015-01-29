@@ -14,3 +14,4 @@
 #    under the License.
 
 from trove.tests.api.clustering.cassandra import GROUP as cassandra_group  # noqa
+from trove.tests.api.clustering.mongodb import GROUP as mongodb_group  # noqa

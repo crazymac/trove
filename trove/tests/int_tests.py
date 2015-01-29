@@ -95,10 +95,18 @@ datastore_group = [
 proboscis.register(groups=["cassandra", "couchbase", "mongodb", "postgresql"],
                    depends_on_groups=datastore_group)
 
-# Clustering tests
+# Cassandra clustering tests
 cassandra_clustering_group = [
     GROUP_SERVICES_INITIALIZE,
     clustering.cassandra_group,
 ]
 proboscis.register(groups=["cassandra_clustering"],
                    depends_on_groups=cassandra_clustering_group)
+
+# MongoDB clustering tests
+mongodb_clustering_group = [
+    GROUP_SERVICES_INITIALIZE,
+    clustering.mongodb_group,
+]
+proboscis.register(groups=["mongodb_clustering"],
+                   depends_on_groups=mongodb_clustering_group)

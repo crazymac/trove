@@ -106,6 +106,23 @@ def datastore_init():
         active=1
     )
 
+    # MongoDB
+    mongodb_datastore_id = "9d2573e0-ac44-460b-aedb-d92190159ac9"
+    mongodb_datastore_version_id = "fcea363e-8737-4597-9876-c3111c1c71dc"
+    models.DBDatastore.create(id=mongodb_datastore_id,
+                              name="mongodb",
+                              default_version_id=
+                              mongodb_datastore_version_id)
+    models.DBDatastoreVersion.create(
+        id=mongodb_datastore_version_id,
+        datastore_id=mongodb_datastore_id,
+        name="2.6.1",
+        manager="mongodb",
+        packages='test_packages',
+        image_id=utils.generate_uuid(),
+        active=1
+    )
+
     main_dsv = models.DBDatastoreVersion.create(
         id=CONFIG.dbaas_datastore_version_id,
         datastore_id=

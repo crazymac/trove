@@ -32,6 +32,37 @@
             ]
         },
         {
+            "default_version": "fcea363e-8737-4597-9876-c3111c1c71dc",
+            "id": "9d2573e0-ac44-460b-aedb-d92190159ac9",
+            "links": [
+                {
+                    "href": "https://troveapi.org/v1.0/1234/datastores/9d2573e0-ac44-460b-aedb-d92190159ac9",
+                    "rel": "self"
+                },
+                {
+                    "href": "https://troveapi.org/datastores/9d2573e0-ac44-460b-aedb-d92190159ac9",
+                    "rel": "bookmark"
+                }
+            ],
+            "name": "mongodb",
+            "versions": [
+                {
+                    "id": "fcea363e-8737-4597-9876-c3111c1c71dc",
+                    "links": [
+                        {
+                            "href": "https://troveapi.org/v1.0/1234/datastores/versions/fcea363e-8737-4597-9876-c3111c1c71dc",
+                            "rel": "self"
+                        },
+                        {
+                            "href": "https://troveapi.org/datastores/versions/fcea363e-8737-4597-9876-c3111c1c71dc",
+                            "rel": "bookmark"
+                        }
+                    ],
+                    "name": "2.6.1"
+                }
+            ]
+        },
+        {
             "default_version": "b00000b0-00b0-0b00-00b0-000b000000bb",
             "id": "a00000a0-00a0-0a00-00a0-000a000000aa",
             "links": [
