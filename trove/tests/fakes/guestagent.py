@@ -372,6 +372,15 @@ class FakeGuest(object):
     def reset_local_schema(self):
         pass
 
+    def add_config_servers(self, config_server_ips):
+        pass
+
+    def add_members(self, other_member_ips):
+        pass
+
+    def add_shard(self, replica_set_name, member_ip):
+        pass
+
 
 def get_or_create(id):
     if id not in DB:

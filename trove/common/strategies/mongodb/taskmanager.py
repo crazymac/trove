@@ -13,22 +13,19 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
-from eventlet.timeout import Timeout
-
 from trove.common import cfg
-from trove.common.exception import PollTimeOut
-from trove.common.instance import ServiceStatuses
-from trove.common.remote import create_guest_client
-from trove.common.strategies import base
+from trove.common import exception
 from trove.common import utils
+from trove.common.instance import ServiceStatuses
+from trove.common.i18n import _
+from trove.common.strategies import base
 from trove.instance.models import DBInstance
 from trove.instance.models import Instance
 from trove.instance.models import InstanceServiceStatus
 from trove.instance.tasks import InstanceTasks
-from trove.common.i18n import _
 from trove.openstack.common import log as logging
 from trove.taskmanager import api as task_api
-import trove.taskmanager.models as task_models
+from trove.taskmanager import models as task_models
 
 
 LOG = logging.getLogger(__name__)
@@ -60,7 +57,7 @@ class MongoDbTaskManagerStrategy(base.BaseTaskManagerStrategy):
                                         replica_set_name)
 
 
-class MongoDbClusterTasks(task_models.ClusterTasks):
+class MongoDbClusterTasksWorkflow(task_models.ClusterTasks):
 
     def update_statuses_on_failure(self, cluster_id, shard_id=None):
 
@@ -76,15 +73,6 @@ class MongoDbClusterTasks(task_models.ClusterTasks):
                 db_instance.set_task_status(
                     InstanceTasks.BUILDING_ERROR_SERVER)
                 db_instance.save()
-
-    @classmethod
-    def get_ip(cls, instance):
-        return instance.get_visible_ip_addresses()[0]
-
-    @classmethod
-    def get_guest(cls, instance):
-        return create_guest_client(instance.context, instance.db_info.id,
-                                   instance.datastore_version.manager)
 
     def _all_instances_ready(self, instance_ids, cluster_id,
                              shard_id=None):
@@ -128,7 +116,7 @@ class MongoDbClusterTasks(task_models.ClusterTasks):
                              lambda ids: _all_status_ready(ids),
                              sleep_time=USAGE_SLEEP_TIME,
                              time_out=CONF.usage_timeout)
-        except PollTimeOut:
+        except exception.PollTimeOut:
             LOG.exception(_("Timeout for all instance service statuses "
                             "to become ready."))
             self.update_statuses_on_failure(cluster_id, shard_id)
@@ -181,131 +169,138 @@ class MongoDbClusterTasks(task_models.ClusterTasks):
             return False
         return True
 
+    @base.decorate_cluster_action
+    def _create_cluster(self, context, cluster_id, **kwargs):
+
+        self._all_servers_ready()
+
+        # fetch instances by cluster_id against instances table
+        db_instances = DBInstance.find_all(cluster_id=cluster_id).all()
+        instance_ids = [db_instance.id for db_instance in db_instances]
+        LOG.debug("instances in cluster %s: %s" % (cluster_id,
+                                                   instance_ids))
+
+        if not self._all_instances_ready(instance_ids, cluster_id):
+            raise exception.TroveError(
+                message=_("Instances for cluster %(id)s are "
+                          "not ready.") % {"id": self.id})
+
+        instances = [Instance.load(context, instance_id) for instance_id
+                     in instance_ids]
+
+        # filter query routers in instances into a new list: query_routers
+        query_routers = [instance for instance in instances if
+                         instance.type == 'query_router']
+        LOG.debug("query routers: %s" %
+                  [instance.id for instance in query_routers])
+        # filter config servers in instances into new list: config_servers
+        config_servers = [instance for instance in instances if
+                          instance.type == 'config_server']
+        LOG.debug("config servers: %s" %
+                  [instance.id for instance in config_servers])
+        # filter members (non router/configsvr) into a new list: members
+        members = [instance for instance in instances if
+                   instance.type == 'member']
+        LOG.debug("members: %s" %
+                  [instance.id for instance in members])
+
+        # for config_server in config_servers, append ip/hostname to
+        # "config_server_hosts", then
+        # peel off the replica-set name and ip/hostname from 'x'
+        config_server_ips = [self.get_ip(instance)
+                             for instance in config_servers]
+        LOG.debug("config server ips: %s" % config_server_ips)
+
+        LOG.debug("calling add_config_servers on query_routers")
+        try:
+            for query_router in query_routers:
+                (self.get_guest(query_router)
+                 .add_config_servers(config_server_ips))
+        except Exception:
+            LOG.exception(_("error adding config servers"))
+            self.update_statuses_on_failure(cluster_id)
+            return
+
+        if not self._create_replica_set(members, cluster_id):
+            raise exception.TroveError(
+                message=_("Instances for cluster %(id)s are "
+                          "not ready.") % {"id": self.id})
+
+        replica_set_name = "rs1"
+        if not self._create_shard(query_routers, replica_set_name,
+                                  members, cluster_id):
+            raise exception.TroveError(
+                message=_("Instances for cluster %(id)s are "
+                          "not ready.") % {"id": self.id})
+        # call to start checking status
+        for instance in instances:
+            self.get_guest(instance).cluster_complete()
+
+    @base.decorate_cluster_action
+    def _add_shard_cluster(self, context, cluster_id, shard_id,
+                           replica_set_name, **kwargs):
+
+        self._all_servers_ready()
+
+        db_instances = DBInstance.find_all(cluster_id=cluster_id,
+                                           shard_id=shard_id).all()
+        instance_ids = [db_instance.id for db_instance in db_instances]
+        LOG.debug("instances in shard %s: %s" % (shard_id,
+                                                 instance_ids))
+        if not self._all_instances_ready(instance_ids, cluster_id,
+                                         shard_id):
+            raise exception.TroveError(
+                message=_("Instances for cluster %(id)s are "
+                          "not ready.") % {"id": self.id})
+
+        members = [Instance.load(context, instance_id)
+                   for instance_id in instance_ids]
+
+        if not self._create_replica_set(members, cluster_id, shard_id):
+            raise exception.TroveError(
+                message=_("Instances for cluster %(id)s are "
+                          "not ready.") % {"id": self.id})
+
+        db_query_routers = DBInstance.find_all(cluster_id=cluster_id,
+                                               type='query_router',
+                                               deleted=False).all()
+        query_routers = [Instance.load(context, db_query_router.id)
+                         for db_query_router in db_query_routers]
+
+        if not self._create_shard(query_routers, replica_set_name,
+                                  members, cluster_id, shard_id):
+            raise exception.TroveError(
+                message=_("Instances for cluster %(id)s are "
+                          "not ready.") % {"id": self.id})
+
+        for member in members:
+            self.get_guest(member).cluster_complete()
+
+
+class MongoDbClusterTasks(MongoDbClusterTasksWorkflow):
+
     def create_cluster(self, context, cluster_id):
         LOG.debug("begin create_cluster for id: %s" % cluster_id)
-
-        def _create_cluster():
-
-            # fetch instances by cluster_id against instances table
-            db_instances = DBInstance.find_all(cluster_id=cluster_id).all()
-            instance_ids = [db_instance.id for db_instance in db_instances]
-            LOG.debug("instances in cluster %s: %s" % (cluster_id,
-                                                       instance_ids))
-
-            if not self._all_instances_ready(instance_ids, cluster_id):
-                return
-
-            instances = [Instance.load(context, instance_id) for instance_id
-                         in instance_ids]
-
-            # filter query routers in instances into a new list: query_routers
-            query_routers = [instance for instance in instances if
-                             instance.type == 'query_router']
-            LOG.debug("query routers: %s" %
-                      [instance.id for instance in query_routers])
-            # filter config servers in instances into new list: config_servers
-            config_servers = [instance for instance in instances if
-                              instance.type == 'config_server']
-            LOG.debug("config servers: %s" %
-                      [instance.id for instance in config_servers])
-            # filter members (non router/configsvr) into a new list: members
-            members = [instance for instance in instances if
-                       instance.type == 'member']
-            LOG.debug("members: %s" %
-                      [instance.id for instance in members])
-
-            # for config_server in config_servers, append ip/hostname to
-            # "config_server_hosts", then
-            # peel off the replica-set name and ip/hostname from 'x'
-            config_server_ips = [self.get_ip(instance)
-                                 for instance in config_servers]
-            LOG.debug("config server ips: %s" % config_server_ips)
-
-            LOG.debug("calling add_config_servers on query_routers")
-            try:
-                for query_router in query_routers:
-                    (self.get_guest(query_router)
-                     .add_config_servers(config_server_ips))
-            except Exception:
-                LOG.exception(_("error adding config servers"))
-                self.update_statuses_on_failure(cluster_id)
-                return
-
-            if not self._create_replica_set(members, cluster_id):
-                return
-
-            replica_set_name = "rs1"
-            if not self._create_shard(query_routers, replica_set_name,
-                                      members, cluster_id):
-                return
-            # call to start checking status
-            for instance in instances:
-                self.get_guest(instance).cluster_complete()
-
-        cluster_usage_timeout = CONF.cluster_usage_timeout
-        timeout = Timeout(cluster_usage_timeout)
-        try:
-            _create_cluster()
-            self.reset_task()
-        except Timeout as t:
-            if t is not timeout:
-                raise  # not my timeout
-            LOG.exception(_("timeout for building cluster."))
-            self.update_statuses_on_failure(cluster_id)
-        finally:
-            timeout.cancel()
-
+        self._create_cluster(
+            context, cluster_id,
+            callback=self.update_statuses_on_failure,
+            timeout=len(self.instances_without_server) * CONF.usage_timeout)
         LOG.debug("end create_cluster for id: %s" % cluster_id)
 
     def add_shard_cluster(self, context, cluster_id, shard_id,
                           replica_set_name):
-
         LOG.debug("begin add_shard_cluster for cluster %s shard %s"
                   % (cluster_id, shard_id))
-
-        def _add_shard_cluster():
-
-            db_instances = DBInstance.find_all(cluster_id=cluster_id,
-                                               shard_id=shard_id).all()
-            instance_ids = [db_instance.id for db_instance in db_instances]
-            LOG.debug("instances in shard %s: %s" % (shard_id,
-                                                     instance_ids))
-            if not self._all_instances_ready(instance_ids, cluster_id,
-                                             shard_id):
-                return
-
-            members = [Instance.load(context, instance_id)
-                       for instance_id in instance_ids]
-
-            if not self._create_replica_set(members, cluster_id, shard_id):
-                return
-
-            db_query_routers = DBInstance.find_all(cluster_id=cluster_id,
-                                                   type='query_router',
-                                                   deleted=False).all()
-            query_routers = [Instance.load(context, db_query_router.id)
-                             for db_query_router in db_query_routers]
-
-            if not self._create_shard(query_routers, replica_set_name,
-                                      members, cluster_id, shard_id):
-                return
-
-            for member in members:
-                self.get_guest(member).cluster_complete()
-
-        cluster_usage_timeout = CONF.cluster_usage_timeout
-        timeout = Timeout(cluster_usage_timeout)
-        try:
-            _add_shard_cluster()
-            self.reset_task()
-        except Timeout as t:
-            if t is not timeout:
-                raise  # not my timeout
-            LOG.exception(_("timeout for building shard."))
-            self.update_statuses_on_failure(cluster_id, shard_id)
-        finally:
-            timeout.cancel()
-
+        timeout = len(
+            DBInstance.find_all(
+                cluster_id=cluster_id,
+                shard_id=shard_id).all()) * CONF.usage_timeout
+        self._add_shard_cluster(context,
+                                cluster_id,
+                                shard_id,
+                                replica_set_name,
+                                callback=self.update_statuses_on_failure,
+                                timeout=timeout)
         LOG.debug("end add_shard_cluster for cluster %s shard %s"
                   % (cluster_id, shard_id))
 

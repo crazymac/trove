@@ -13,6 +13,55 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
+import functools
+from eventlet.timeout import Timeout
+
+from trove.common import exception
+from trove.common.i18n import _
+from trove.openstack.common import log as logging
+
+LOG = logging.getLogger(__name__)
+
+
+def decorate_cluster_action(action):
+
+    @functools.wraps(action)
+    def wrapper(self, *args, **kwargs):
+        timeout = Timeout(kwargs.pop('timeout'))
+        LOG.debug("Action: %s. Action timeout: %s" % (
+            action.__name__, timeout.seconds))
+        try:
+            action(self, *args, **kwargs)
+        except (Timeout, exception.TroveError, Exception) as e:
+            LOG.exception(_("Error during action: %(action)s execution. "
+                            "Exception: %(e)s")
+                          % {"e": e, "action": action})
+
+            # in common case callback just updates statuses
+            # of resources and allows user to terminate cluster/node
+            callback = kwargs.pop('callback', None)
+            if callback and callable(callback):
+                callback(*args)
+
+            # recoverer tries to recover cluster to previous state
+            recoverer = kwargs.pop('recoverer', None)
+            if recoverer and callable(recoverer):
+                recoverer(*args)
+
+            if e is not timeout:
+                raise exception.ClusterActionError(
+                    action="%s.%s" % (
+                        self.__class__.__name__,
+                        action.__name__),
+                    datastore=self.datastore.name,
+                    cluster_id=self.id)
+            LOG.exception(_("timeout for cluster action."))
+        finally:
+            self.reset_task()
+            timeout.cancel()
+
+    return wrapper
+
 
 class BaseAPIStrategy(object):
 

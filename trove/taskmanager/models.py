@@ -13,6 +13,7 @@
 #    under the License.
 
 import re
+import time
 import traceback
 import os.path
 
@@ -189,6 +190,38 @@ class ConfigurationMixin(object):
 
 
 class ClusterTasks(Cluster):
+
+    def _all_servers_ready(self):
+        def _poller():
+            for instance in self.instances:
+                if instance.server.status == "ACTIVE":
+                    return True
+                if instance.server.status in ["ERROR", "FAILED"]:
+                    raise exception.TroveError(
+                        _("Compute instance is not ready."))
+        try:
+            # sleep is required to let other taskmanager thread
+            # enough time to create compute instances,
+            # due to async execution of cluster provisioning and
+            # instance provisioning there are possible race
+            # conditions between two thread.
+            time.sleep(10)
+            utils.poll_until(_poller,
+                             sleep_time=USAGE_SLEEP_TIME,
+                             time_out=CONF.usage_timeout)
+        except exception.PollTimeOut:
+            LOG.exception(_(
+                "Timeout for all compute instance to become ready."))
+
+    @classmethod
+    def get_ip(cls, instance):
+        return instance.get_visible_ip_addresses()[0]
+
+    @classmethod
+    def get_guest(cls, instance):
+        return remote.create_guest_client(
+            instance.context, instance.db_info.id,
+            instance.datastore_version.manager)
 
     def delete_cluster(self, context, cluster_id):
 

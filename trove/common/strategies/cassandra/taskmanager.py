@@ -14,13 +14,10 @@
 #    under the License.
 import time
 import yaml
-import functools
-from eventlet.timeout import Timeout
 
 from trove.common import cfg
 from trove.common import exception
 from trove.common.instance import ServiceStatuses
-from trove.common.remote import create_guest_client
 from trove.common.strategies import base
 from trove.common import utils
 from trove.common import template
@@ -32,7 +29,7 @@ from trove.instance.tasks import InstanceTasks
 from trove.openstack.common.gettextutils import _
 from trove.openstack.common import log as logging
 from trove.taskmanager import api as task_api
-import trove.taskmanager.models as task_models
+from trove.taskmanager import models as task_models
 
 
 LOG = logging.getLogger(__name__)
@@ -72,46 +69,6 @@ class CassandraTaskManagerStrategy(base.BaseTaskManagerStrategy):
             CassandraClusterTasks)
         cluster_tasks.add_seed_node_to_cluster(
             context, cluster_id, node_id)
-
-
-def decorate_cluster_action(action):
-
-    @functools.wraps(action)
-    def wrapper(self, *args, **kwargs):
-        timeout = Timeout(kwargs.pop('timeout'))
-        LOG.debug("Action: %s. Action timeout: %s" % (
-            action.__name__, timeout.seconds))
-        try:
-            action(self, *args, **kwargs)
-        except (Timeout, exception.TroveError, Exception) as e:
-            LOG.exception(_("Error during action: %(action)s execution. "
-                            "Exception: %(e)s")
-                          % {"e": e, "action": action})
-
-            # in common case callback just updates statuses
-            # of resources and allows user to terminate cluster/node
-            callback = kwargs.pop('callback', None)
-            if callback and callable(callback):
-                callback(*args)
-
-            # recoverer tries to recover cluster to previous state
-            recoverer = kwargs.pop('recoverer', None)
-            if recoverer and callable(recoverer):
-                recoverer(*args)
-
-            if e is not timeout:
-                raise exception.ClusterActionError(
-                    action="%s.%s" % (
-                        self.__class__.__name__,
-                        action.__name__),
-                    datastore=self.datastore.name,
-                    cluster_id=self.id)
-            LOG.exception(_("timeout for cluster action."))
-        finally:
-            self.reset_task()
-            timeout.cancel()
-
-    return wrapper
 
 
 class CassandraClusteringWorkflow(task_models.ClusterTasks):
@@ -169,34 +126,6 @@ class CassandraClusteringWorkflow(task_models.ClusterTasks):
             raise exception.TroveError(
                 message=_("Instances for cluster %(id)s are "
                           "not ready.") % {"id": self.id})
-
-    @classmethod
-    def get_ip(cls, instance):
-        visible = instance.get_visible_ip_addresses()
-        LOG.debug("Visible IPs: %s." % visible)
-        return instance.get_visible_ip_addresses()[0]
-
-    @classmethod
-    def get_guest(cls, instance):
-        return create_guest_client(instance.context, instance.db_info.id,
-                                   instance.datastore_version.manager)
-
-    def _all_servers_ready(self):
-        def _poller():
-            for instance in self.instances:
-                if instance.server.status == "ACTIVE":
-                    return True
-                if instance.server.status in ["ERROR", "FAILED"]:
-                    raise exception.TroveError(
-                        _("Compute instance is not ready."))
-        try:
-            time.sleep(10)
-            utils.poll_until(_poller,
-                             sleep_time=USAGE_SLEEP_TIME,
-                             time_out=CONF.usage_timeout)
-        except exception.PollTimeOut:
-            LOG.exception(_(
-                "Timeout for all compute instance to become ready."))
 
     def _all_instances_ready(self, instance_ids, cluster_id):
 
@@ -273,7 +202,7 @@ class CassandraClusteringWorkflow(task_models.ClusterTasks):
             if reboot:
                 self.reboot(node, guest)
 
-    @decorate_cluster_action
+    @base.decorate_cluster_action
     def _create_cluster(self, context, cluster_id, **kwargs):
 
         cassandra_conf = CONF.cassandra
@@ -428,7 +357,7 @@ class CassandraClusteringWorkflow(task_models.ClusterTasks):
 
                 return node
 
-    @decorate_cluster_action
+    @base.decorate_cluster_action
     def _add_data_node(self, context, cluster_id, node_id, **kwargs):
 
         LOG.debug("Running server status check.")
@@ -496,7 +425,7 @@ class CassandraClusteringWorkflow(task_models.ClusterTasks):
         new_datanode_guest.reset_local_schema()
         new_datanode.reset_task_status()
 
-    @decorate_cluster_action
+    @base.decorate_cluster_action
     def _add_seed_node(self, context, cluster_id, node_id, **kwargs):
 
         LOG.debug("Running server status check.")
